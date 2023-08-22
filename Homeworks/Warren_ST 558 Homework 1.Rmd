@@ -1,0 +1,156 @@
+---
+title: "ST 558 Homework 1 -- R Basics"
+author: "Eric Warren"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Homework 1 {.tabset}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+## Part 1 - Vector Practice
+
+### Problem 1
+
+We are using the seq or : function to create a vector from 0 to 100 in steps of 5. Save this to an R object called `skip`.
+```{r problem 1-1}
+skip <- seq(0, 100, 5)
+```
+
+### Problem 2
+
+Add 8 to each element of the skip vector (just write code to print this to the console).
+```{r problem 1-2}
+skip + 8
+```
+
+### Problem 3
+
+Square each element of the skip vector (just write code to print this to the console).
+```{r problem 1-3}
+skip ** 2
+```
+
+### Problem 4
+
+Create a vector that is the skip vector repeated 8 times (hint: try the rep function and help(rep)). Save this to an R object called `Repeat`.
+```{r problem 1-4}
+Repeat <- rep(skip, times = 8)
+```
+
+### Problem 5
+
+Create a vector that is the skip vector with each element repeated 8 times (0,0,0. . . ,0,5,5,. . . ) (check help(rep) again!). Save this to an R object called `elementRepeat`
+```{r problem 1-5}
+elementRepeat <- rep(skip, each = 8)
+```
+
+### Problem 6
+
+Add the `Repeat` and `elementRepeat` vectors together - how does R do addition of vectors? Answer this in a comment below the code.
+```{r problem 1-6}
+Repeat + elementRepeat
+```
+
+As we can see R adds vectors by adding the $i^{th}$ element in each vector to create the new $i^{th}$ element in a new vector. For example we see when adding `Repeat` + `elementRepeat` that to get the first element in the added vector we see it takes `Repeat[1]` + `elementRepeat[1]` and does so by going up by 1 for each vector's index until we get to element 168 which is `Repeat[168]` + `elementRepeat[168]` since this is 168 is the length of the vector. 
+
+### Problem 7
+
+Multiply together the vectors `Repeat` and `elementRepeat` - how does R do multiplication of vectors? Answer this in a comment below the code.
+```{r problem 1-7}
+Repeat * elementRepeat
+```
+
+As we can see R multiplies vectors by multiplying the $i^{th}$ element in each vector to create the new $i^{th}$ element in a new vector, similar to adding the vectors. For example we see when adding `Repeat` * `elementRepeat` that to get the first element in the multiplied vector we see it takes `Repeat[1]` * `elementRepeat[1]` and does so by going up by 1 for each vector's index until we get to element 168 which is `Repeat[168]` * `elementRepeat[168]` since this is 168 is the length of the vector. 
+
+### Problem 8
+
+We often need to get every combination of a vector or vectors when fitting models. For instance if I had three vectors a (with elements a1 and a2), b (with elements b1 and b2), and c ( with elements c1, c2, and c3) we often need to create a matrix or data frame. This can be done easily in R with a built-in function. Google something like ‘create all combinations of vectors in R’ to find the function and recreate the above data frame with all of the combinations of a, b, and c.
+```{r problem 1-8}
+a <- c("a1", "a2")
+b <- c("b1", "b2")
+c <- c("c1", "c2", "c3")
+expand.grid(a, b, c)
+```
+
+## Part 2 - Character Vector Practice
+
+### Problem 1
+
+Create a character vector (call it `adj`) of length 4 consisting of adjectives
+```{r problem 2-1}
+adj <- c("wild", "electric", "selfish", "petite")
+```
+
+### Problem 2
+
+Create a second character vector of same length consisting of nouns (call it `nouns`)
+```{r problem 2-2}
+nouns <- c("map", "restaurant", "college", "tomato")
+```
+
+### Problem 3
+
+The two vectors can be “pasted” together elementwise using the `paste()` function. Do this and have R print the answer to the console.
+```{r problem 2-3}
+paste(adj, nouns)
+```
+
+### Problem 4
+
+Paste them together but change the separator (`sep`) to be an underscore (see `help(paste))`. Have R print the answer to the console
+```{r problem 2-4}
+paste(adj, nouns, sep = "_")
+```
+
+## Part 3 - Data Frame Practice
+
+### Load in the data
+
+Load in the `ToothGrowth` data set
+```{r problem 3-0}
+ToothGrowth
+```
+
+### Problem 1
+
+Determine which of our common data structures the ToothGrowth object is. Answer in a comment but give the code used to determine it.
+```{r problem 3-1}
+str(ToothGrowth)
+```
+
+We can see that `ToothGrowth` is a **data frame**. It has 3 columns in which the first and last are numeric and the second is a factor with 2 levels.
+
+### Problem 2
+
+Have R print out just the dose column using three different methods
+```{r problem 3-2}
+ToothGrowth[ , "dose"]
+ToothGrowth[ , 3]
+ToothGrowth$dose
+```
+
+### Problem 3
+
+The first 30 observations are the VC group. Have R print out just the values of `len` and `dose` for the VC observations
+```{r problem 3-3}
+ToothGrowth[1:30 , c("len", "dose")]
+```
+
+### Problem 4
+
+In a comment, describe the similarities and major difference between a matrix object in R and a data frame object in R.
+
+A matrix and data frame are the same where there are a collection of vectors of the same length in a 2-dimensional format. The difference is that a matrix must have the same type of data in it (homogeneous -- all numbers for example), whereas a data frame can take in different (heterogeneous) types (for example you can have a mix of one being numbers and another being text).
+
+### Problem 5
+
+Change the row names to be 61, 62, ..., 120 and change the `len` column of the `ToothGrowth` data set to `length`. Print the first 10 rows of the data set out using the `head` function.
+```{r problem 3-5}
+rownames(ToothGrowth) <- c(61:120)
+colnames(ToothGrowth)[1] <- "length"
+head(ToothGrowth, 10)
+```
