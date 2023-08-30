@@ -1,0 +1,198 @@
+---
+title: "ST 558 Homework 3"
+author: "Eric Warren"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: show
+    theme: readable
+---
+
+# Part 1 - Concept Questions
+
+## Problem 1
+
+Some main differences between a tibble and a data frame include:
+
+1. Data frames return a vector when subsetting a column, while a tibble returns a tibble.
+2. Tibbles have better printing (tibbles print the first 10 rows and an abbreviated description of the data set) as compared to a data frame
+3. Tibbles do not support arithmetic operations on all operations, unlike data frames.
+4. In order to recycle values for a column in a tibble, you must have a length of 1, if not there is an error. Our first homework showed that you can have a length not equal to 1 to recycle values.
+
+## Problem 2
+
+Rewrite the following call using nesting of functions:
+```{r prob 1-2-1, eval=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+iris %>% 
+  as_tibble() %>%
+  select(starts_with("Petal")) %>%
+  filter(Petal.Length < 1.55)
+```
+
+When using nesting, we are starting on the inside and working towards the outside for the last part of the chaining process. For this problem we have `w %>% f(x) %>% g(y) %>% h(z)` produces in nesting `h(g(f(w,x), y), z)`. We are going to do that here, in which the result would give us:
+```{r prob 1-2-2, eval=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+filter(select(as_tibble(iris), starts_with("Petal")), Petal.Length < 1.55)
+```
+
+## Problem 3
+
+When we use the term *long format* for data, we are saying that each row represents a single observation in our data set, as opposed to the other option of *wide format* which does not.
+
+# Part 2 - Programming Questions {.tabset .tabset-pills}
+
+## Lehman Data
+
+### Problem 1
+
+Install the `Lahman` package if you don’t have it. Read it in and print the `Pitching` data set out after first converting it to a tibble using the `as_tibble` function from `dplyr` (or we can say `tidyverse` if we just load in that library, which contains `dplyr` among other packages).
+```{r prob 2-1-1, warning=FALSE, message=FALSE}
+library(Lahman)
+library(tidyverse) # This is here to use the package for later
+Pitching <- as_tibble(Pitching)
+Pitching
+```
+
+### Problem 2
+
+Choose only columns ending in “ID” and the IPouts, SO, and BB columns. To do this, we are going to use the `select` function to select columns and then to get all the ends with "ID" columns, we will use the `ends_with` function within the `select ` function to get all of these.
+```{r prob 2-1-2, warning=FALSE, message=FALSE}
+Pitching %>% 
+  select(ends_with("ID"), IPouts, SO, BB)
+```
+
+### Problem 3
+
+Add to your code from the previous question (with chaining) and subset the data to only include rows from 2000 to 2020. Using our previous code, we will add the `filter` function to filter our data set to include only observations with the `yearID` variable greater than or equal to 2000 **AND** less than or equal to 2020.
+```{r prob 2-1-3, warning=FALSE, message=FALSE}
+Pitching %>% 
+  select(ends_with("ID"), IPouts, SO, BB) %>%
+  filter((yearID >= 2000) & (yearID <= 2020))
+```
+
+### Problem 4
+
+Continuing your result, now add two new columns that are the strike out to walk ratio (SO/BB) and a ratio that is the (number of strikeouts minus the number of walks) divided by the innings pitched (SO-BB)/IPouts. Adding to our previous code, we are going to use the `mutate` function to create new columns that show these measures that are asked.
+```{r prob 2-1-4, warning=FALSE, message=FALSE}
+Pitching %>% 
+  select(ends_with("ID"), IPouts, SO, BB) %>%
+  filter((yearID >= 2000) & (yearID <= 2020)) %>%
+  mutate(soBbRatio = SO / BB,
+         soMinusBbPerIP = (SO - BB) / IPouts)
+```
+
+### Problem 5
+
+Find the average SO and average BB for each team for each of the years 2000 through 2003. Save this result as a new object. First, we will use the `filter` function to filter our data set to include only observations with the `yearID` variable greater than or equal to 2000 **AND** less than or equal to 2003. Next, we will use the `group_by` function to group our observations by `teamID` and `yearID` since that is what we are trying to get our summary statistics on. Lastly, we will use the `summarize` function to get the summary statistics of the mean of strikeouts (`SO`) and the mean of walks (`BB`), using the `mean` function for both. We will save this result using the object name `averages` (you can call this anything). We will lastly print the tibble to show a quick snapshot of the results.
+```{r prob 2-1-5, warning=FALSE, message=FALSE}
+averages <- Pitching %>% 
+  filter((yearID >= 2000) & (yearID <= 2003)) %>%
+  group_by(teamID, yearID) %>%
+  summarize(avgSO = mean(SO),
+            avgBB = mean(BB))
+averages
+```
+
+### Problem 6
+
+Take the output from question 5 and remove the average number of walks variable. Put the data into wide form with years each being a column and the average number of strikeouts being the values. Hint: You should have 30 rows and 5 columns. Using our `averages` tibble, we will first remove the average walks variable (`avgBB`) using the `select` function and then saying "-`avgBB`" to remove this variable and keep everything else. The same outcome could be done by saying `select(teamID, yearID, avgSO)`, but I believe the way I did it is more efficient. Lastly, we are using the `pivot_wider` function to make the data into *wide format* and have specified that our naming column for the wider table comes from `yearID` and the values to pivot to a wider table come from `avgSO`.
+```{r prob 2-1-6, warning=FALSE, message=FALSE}
+averages %>%
+  select(-avgBB) %>%
+  pivot_wider(names_from = "yearID", values_from = "avgSO")
+```
+
+## Wine Data
+
+### Read in the data
+
+Read in data on white and red wine using the code below.
+```{r prob 2-2-0, warning=FALSE, message=FALSE}
+library(readr)
+white <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/white-wine.csv")
+red <- read_delim("https://www4.stat.ncsu.edu/~online/datasets/red-wine.csv", delim = ";")
+```
+
+### Problem 1
+
+Add a variable to each tibble corresponding to the type of wine. That is, for the white tibble, add a column that is always “white” and similarly for the red tibble. Use the same variable name. Here we can just use the `mutate` function to each of the data sets to add a new variable (called `color`) to show the type of wine it is.
+```{r prob 2-2-1.1, warning=FALSE, message=FALSE}
+white <- white %>%
+  mutate(color = "white")
+red <- red %>%
+  mutate(color = "red")
+```
+
+Combine the two tibbles using the code below:
+```{r prob 2-2-1.2, warning=FALSE, message=FALSE}
+wine <- dplyr::bind_rows(white, red)
+```
+
+### Problem 2
+
+You’ll notice that most of the variable names are non-standard and are surrounded by back ticks to account for that. Rename these variables so that back ticks are not needed. Save this as a new object and then use chaining on that object from questions 2 and on. There are 2 options to this:
+
+**Option 1**: Not using `rename` and instead using `colnames` and `gsub`. By removing the blanks between the column names and replace with underscores we can remove the tick marks automatically. First make a copy of the old dataset and using the `colnames` function we can update the column names of this new object we were supposed to create.
+```{r prob 2-2-2.1, warning=FALSE, message=FALSE}
+wine_cols_renamed <- wine # Make a copy; only doing this since we are told to save this as a new object
+colnames(wine_cols_renamed) <- gsub(" ", "_", colnames(wine))
+wine_cols_renamed
+```
+
+**Option 2**: Using the `rename` function (more hard-coded way). By doing this, we can manually update the names to whatever we want to. Put the `new_column_name` to the left of the equal sign and then the exact spelling and conventions of the `old_column_name` to the right. Save this as a new object.
+```{r prob 2-2-2.2, warning=FALSE, message=FALSE}
+wine_renamed <- wine %>%
+  rename(fixed_acidity = `fixed acidity`,
+         volatile_acidity = `volatile acidity`,
+         citric_acid = `citric acid`,
+         residual_sugar = `residual sugar`,
+         free_sulfur_dioxide = `free sulfur dioxide`,
+         total_sulfur_dioxide = `total sulfur dioxide`)
+wine_renamed
+```
+
+### Problem 3
+
+Filter the data to only look at high-quality wines (`quality` > 6.5) **and** wines that have a reasonable alcohol value (`alcohol` < 132). Use the `filter` function to have the data fit the criteria above.
+```{r prob 2-2-3, warning=FALSE, message=FALSE}
+wine_renamed %>%
+  select(quality, alcohol, everything()) %>% #Added this in to show it is being filtered correctly, but not needed
+  filter((quality > 6.5) & (alcohol < 132))
+```
+
+### Problem 4
+
+Use chaining to now sort the data from highest `quality` to lowest. Here we are adding from our previous code and using the `arrange` function to sort and then within the function include another called `desc` to sort from high to low.
+```{r prob 2-2-4, warning=FALSE, message=FALSE}
+wine_renamed %>%
+  filter((quality > 6.5) & (alcohol < 132)) %>%
+  select(quality, alcohol, everything()) %>% #Added this in to show it is being sorted correctly, but not needed
+  arrange(desc(quality))
+```
+
+### Problem 5
+
+Use chaining to select only the variables that contain *acid*, the `alcohol` variable, the type variable (in this case it is called `color`), and the `quality` variable. Here we are adding from our previous code and using the `select` function to save the columns specified above. We can use the `contains` function within the `select` function to retain all the column names that contain the phrase "*acid*".
+```{r prob 2-2-5, warning=FALSE, message=FALSE}
+wine_renamed %>%
+  filter((quality > 6.5) & (alcohol < 132)) %>%
+  arrange(desc(quality)) %>%
+  select(quality, alcohol, color, contains("acid"))
+```
+
+### Problem 6
+
+Use chaining to add the **mean** and **standard deviation** of the `alcohol` variable to the data set for each setting of the `quality` variable. Using our previous code, we are going to use the `group_by` function to group all the observations by `quality` since we want to find some statistics about this variable. Lastly, we use the `summarize` variable to summarize the average of `alcohol` content using the `mean` function and the standard deviation of `alcohol` content using the `sd` function.
+```{r prob 2-2-6, warning=FALSE, message=FALSE}
+wine_renamed %>%
+  filter((quality > 6.5) & (alcohol < 132)) %>%
+  arrange(desc(quality)) %>%
+  select(quality, alcohol, color, contains("acid")) %>%
+  group_by(quality) %>%
+  summarize(avg_alcohol = mean(alcohol),
+            sd_alcohol = sd(alcohol))
+```
