@@ -1,0 +1,302 @@
+---
+title: "ST 558 Project 1"
+author: "Eric Warren and Chandler Ellsworth"
+date: '2023-09-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+# Data Processing
+
+## First Data Set {.tabset .tabset-pills}
+
+The first thing we are going to do is read in a section of the data that we are going to analyze and use to make function. The code we are using was given to us so we had the opportunity to access this data.
+```{r read in 1}
+library(readr)
+sheet1 <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv") 
+```
+
+Now we are going to filter the duplicate row and select the following columns in order to trim the data we are analyzing. The columns we are using have at least one of the following characteristics:
+
+- `Area_name` (which we will rename as `area_name`)
+- `STCOU`
+- Any column that ends in “D”
+```{r select columns 1}
+library(tidyverse)
+sheet1 <- sheet1 %>%
+  filter(Area_name != "District of Columbia") %>%
+  select(Area_name,
+         STCOU,
+         ends_with("D")
+         ) %>%
+  rename(area_name = Area_name)
+sheet1
+```
+
+Now we can see how our data is structured. We can see that it is categorized with the country overall statistics first, then the state, and lastly county level data.
+
+Now we are going to convert the data into a *long format* where each row will have the `area_name` with only one enrollment value.
+```{r long data 1}
+sheet1_long <- sheet1 %>%
+  pivot_longer(
+    cols = starts_with("EDU"),
+    names_to = "education_measurement",
+    values_to = "education_value"
+  )
+sheet1_long
+```
+
+We have now changed the data into a longer format where only one education measurement is in each row and its corresponding value is highlighted in the next column.
+
+Now we are going to parse the `education_measurement` column to first have the type of survey which is the first three letters followed by the next four digits and then also pull the year from the third to last and second to last elements in the string. We will be using the `substr()` function to do this. Lastly, we are going to use the `select()` and `everything()` functions to reorder the columns to make it easier to follow. This part is our personal preference.
+```{r get year and surbey type 1}
+# Make a copy of the data. Doing this in case we need to reference the old one, if needed
+sheet1_long_fixed <- sheet1_long
+
+# Now get the year from the education_measurement column
+sheet1_long_fixed$year <- substr(sheet1_long_fixed$education_measurement, start = nchar(sheet1_long_fixed$education_measurement)-2, stop = nchar(sheet1_long_fixed$education_measurement)-1)
+sheet1_long_fixed$year <- as.numeric(sheet1_long_fixed$year)
+sheet1_long_fixed$year <- ifelse(sheet1_long_fixed$year > 25, 1900 + sheet1_long_fixed$year, 2000 + sheet1_long_fixed$year) # This allows us to make sure the survey was done in 1900s or 2000s
+
+# Now get the first 3 letters and next 4 digits to see what type of survey was taken
+sheet1_long_fixed$education_measurement <- substr(sheet1_long_fixed$education_measurement, start = 1, stop = 7)
+
+# Order the data to get the year in front of the measurement
+sheet1_long_fixed <- sheet1_long_fixed %>%
+  select(area_name, STCOU, year, everything())
+
+# Display this new data
+sheet1_long_fixed
+```
+
+Now we can see that our data has the year and the type of survey (or measurement of education) that was taken for corresponding areas. We now want to separate the data into two different tibbles. The first is one on a county level, which will be called `sheet1_county_data` and the other which is not county level data, which will be called `sheet1_not_county_data`. We will use the `filter()` and `grepl()` functions to find the pattern of "County Name, DD" to make that a part of `sheet1_county_data` and data that is not a part of this pattern a part of `sheet1_not_county_data`. We are also going to create a class called "county" for `sheet1_county_data` and a class called "state" for  `sheet1_not_county_data`.
+```{r splitting data 1}
+# Here we are going to make the county level data
+sheet1_county_data <- sheet1_long_fixed %>% 
+  filter(grepl(pattern = ", \\w\\w", area_name))
+class(sheet1_county_data) <- c("county", class(sheet1_county_data)) # Create the new class called county
+sheet1_county_data
+
+# Here we are going to make the non-county level data
+sheet1_not_county_data <- sheet1_long_fixed %>% 
+  filter(!grepl(pattern = ", \\w\\w", area_name))
+class(sheet1_not_county_data) <- c("state", class(sheet1_not_county_data)) # Create the new class called state
+sheet1_not_county_data
+```
+
+After seeing how our two datasets look, we are going to add to the `sheet1_county_data` tibble by creating a new variable called `state` which shows what state each county is in. We are going to use the `substr()` function to do this. Lastly using `select()` and `everything()` functions, we are going to reorder the columns for them to make sense.
+```{r show state from county 1}
+# Get the state from each county and make it a new column
+sheet1_county_data$state <- substr(sheet1_county_data$area_name, start = nchar(sheet1_county_data$area_name)-1, stop = nchar(sheet1_county_data$area_name))
+
+# Reorder the columns with county and then state column following it
+sheet1_county_data <- sheet1_county_data %>% 
+  select(area_name, state, everything())
+
+# Show the updated tibble
+sheet1_county_data
+```
+
+With adding the state to the `sheet1_county_data` tibble, we now want to add the division of the states to the `sheet1_not_county_data`, which we will call `division`. The divisions will be created based on the [Census Bureau](https://en.wikipedia.org/wiki/List_of_regions_of_the_United_States). This new variable will be created by using the `%in%` operator. If the division does not correspond to a state, we want to return **"Error"** so we know it is not a US state. Lastly using `select()` and `everything()` functions, we are going to reorder the columns for them to make sense.
+```{r show division from state 1}
+# Make all the divisions based on classification
+division_1 <- toupper(c("Connecticut", "Maine", "Massachusetts", "New Hampshire", "Rhode Island", "Vermont"))
+division_2 <- toupper(c("New Jersey", "New York", "Pennsylvania"))
+division_3 <- toupper(c("Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin"))
+division_4 <- toupper(c("Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska", "North Dakota", "South Dakota"))
+division_5 <- toupper(c("Delaware", "Florida", "Georgia", "Maryland", "North Carolina", "South Carolina", "Virginia", "District of Columbia", "West Virginia"))
+division_6 <- toupper(c("Alabama", "Kentucky", "Mississippi", "Tennessee"))
+division_7 <- toupper(c("Arkansas", "Louisiana", "Oklahoma", "Texas"))
+division_8 <- toupper(c("Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming"))
+division_9 <- toupper(c("Alaska", "California", "Hawaii", "Oregon", "Washington"))
+
+# Create a new column called division to put the states in the correct spot. We will then sort the data so the division is next to the state
+sheet1_not_county_data <- sheet1_not_county_data %>%
+  mutate(
+    division = ifelse(
+      area_name %in% division_1, "New England", ifelse(
+        area_name %in% division_2, "Middle Atlantic", ifelse(
+          area_name %in% division_3, "East North Central", ifelse(
+            area_name %in% division_4, "West North Central", ifelse(
+              area_name %in% division_5, "South Atlantic", ifelse(
+                area_name %in% division_6, "East South Central", ifelse(
+                  area_name %in% division_7, "West South Central", ifelse(
+                    area_name %in% division_8, "Mountain", ifelse(
+                      area_name %in% division_9, "Pacific", "ERROR"
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  ) %>% 
+  select(area_name, division, everything())
+
+# Print the updated tibble
+sheet1_not_county_data
+```
+
+## Second Data Set
+
+Now we want to repeat this process with using functions that we are going to create. Before we do that, we are going to do is read in our next section of data that we are going to analyze and use to make function. The code we are using is done the same procedure to read in the first section of data that was used in the previous section.
+```{r read in 1}
+library(readr)
+sheet2 <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv")
+```
+
+Now we are going to start making our functions to that did all the previous things we were asked to do for our first set of data. The first function we are going to create called `reshaping_data()` will select the columns we need and then pivot the data into the longer format, like what was done in the previous section. We are also going to remove the duplicate row for the **"District of Columbia"**
+```{reshaping data function 1}
+reshaping_data <- function(tibble) {
+  # Here we are selecting and renaming our desired columns
+  tibble <- tibble %>% 
+    filter(Area_name != "District of Columbia") %>%
+    select(Area_name,
+         STCOU,
+         ends_with("D")
+         ) %>% 
+    rename(area_name = Area_name)
+  
+  # Here we are changing our data into the long format
+  tibble_long <- tibble %>%
+  pivot_longer(
+    cols = starts_with("EDU"),
+    names_to = "education_measurement",
+    values_to = "education_value"
+  )
+  
+  # Now we are going to return the long formatted data
+  return(tibble_long)
+}
+```
+
+Now we want to create another function, which will be called `find_year_and_survey()`. This function will allow us to parse the `education_measurement` column to first have the type of survey which is the first three letters followed by the next four digits and then also pull the year from the third to last and second to last elements in the string. We will be using the `substr()` function within our newly created function to do this. Lastly, we are going to use the `select()` and `everything()` functions within our function to reorder the columns to make it easier to follow. This part is our personal preference, as we did before with the first data set.
+```{r function to get year and survey 1}
+find_year_and_survey <- function(tibble_long) {
+  # Make a copy of the data. Doing this in case we need to reference the old one, if needed
+  tibble_fixed <- tibble_long
+
+  # Now get the year from the education_measurement column
+  tibble_fixed$year <- substr(tibble_fixed$education_measurement, start = nchar(tibble_fixed$education_measurement)-2, stop = nchar(tibble_fixed$education_measurement)-1)
+  tibble_fixed$year <- as.numeric(tibble_fixed$year)
+  tibble_fixed$year <- ifelse(tibble_fixed$year > 25, 1900 + tibble_fixed$year, 2000 + tibble_fixed$year) # This allows us to make sure the survey was done in 1900s or 2000s
+
+  # Now get the first 3 letters and next 4 digits to see what type of survey was taken
+  tibble_fixed$education_measurement <- substr(tibble_fixed$education_measurement, start = 1, stop = 7)
+
+  # Order the data to get the year in front of the measurement
+  tibble_fixed <- tibble_fixed %>%
+    select(area_name, STCOU, year, everything())
+
+  # Return this new data
+  return(tibble_fixed)
+}
+```
+
+Now for the county-level tibble, we are going to create a function called `find_state()` which will allow us to create a new variable called `state` that describes which state one of these county measurements corresponds to using `substr()` within our function. We are also going to reorder the columns to put the new `state` variable next to the `area_name` or county of that state.
+```{r function to find state 1}
+find_state <- function(tibble_county_data) {
+  # Get the state from each county and make it a new column
+  tibble_county_data$state <- substr(tibble_county_data$area_name, start = nchar(tibble_county_data$area_name)-1, stop = nchar(tibble_county_data$area_name))
+
+  # Reorder the columns with county and then state column following it
+  tibble_county_data <- tibble_county_data %>% 
+    select(area_name, state, everything())
+
+  # Show the updated tibble
+  return(tibble_county_data)
+}
+```
+
+Now for the non-county-level tibble, we are going to create a function called `find_division()` which will allow us to create a new variable called `division`, which is based on the US divisions defined by the [Census Bureau](https://en.wikipedia.org/wiki/List_of_regions_of_the_United_States). This new variable will be created by using the `%in%` operator. If the division does not correspond to a state, we want to return **"Error"** so we know it is not a US state. Lastly using `select()` and `everything()` functions within our function, we are going to reorder the columns for them to make sense.
+```{r function to find division 1}
+find_division <- function(tibble_non_county_data) {
+  # Make all the divisions based on classification
+  division_1 <- toupper(c("Connecticut", "Maine", "Massachusetts", "New Hampshire", "Rhode Island", "Vermont"))
+  division_2 <- toupper(c("New Jersey", "New York", "Pennsylvania"))
+  division_3 <- toupper(c("Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin"))
+  division_4 <- toupper(c("Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska", "North Dakota", "South Dakota"))
+  division_5 <- toupper(c("Delaware", "Florida", "Georgia", "Maryland", "North Carolina", "South Carolina", "Virginia", "District of Columbia", "West Virginia"))
+  division_6 <- toupper(c("Alabama", "Kentucky", "Mississippi", "Tennessee"))
+  division_7 <- toupper(c("Arkansas", "Louisiana", "Oklahoma", "Texas"))
+  division_8 <- toupper(c("Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming"))
+  division_9 <- toupper(c("Alaska", "California", "Hawaii", "Oregon", "Washington"))
+
+  # Create a new column called division to put the states in the correct spot. We will then sort the data so the division is next to the state
+  tibble_non_county_data <- tibble_non_county_data %>%
+    mutate(division = ifelse(
+      area_name %in% division_1, "New England", ifelse(
+        area_name %in% division_2, "Middle Atlantic", ifelse(
+          area_name %in% division_3, "East North Central", ifelse(
+            area_name %in% division_4, "West North Central", ifelse(
+              area_name %in% division_5, "South Atlantic", ifelse(
+                area_name %in% division_6, "East South Central", ifelse(
+                  area_name %in% division_7, "West South Central", ifelse(
+                    area_name %in% division_8, "Mountain", ifelse(
+                      area_name %in% division_9, "Pacific", "ERROR"
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    ) %>% 
+    select(area_name, division, everything())
+
+  # Return the updated tibble
+  return(tibble_non_county_data)
+}
+```
+
+Our next function will allow us to split the data into two different tibbles, one based on county-level data and the other by non-county-level data, similar to what we did with the first data source. We are going to call this function `split_into_level_type()`. We are also going to combine our last two created functions with this one to return the two correctly structured data sets we desire.
+```{r function to split into county or not county data 1}
+split_into_level_type <- function(tibble_long) {
+  # Here we are going to split our data into county level and non-county level data
+  # First split into county level data
+  tibble_county_data <- tibble_long %>% 
+    filter(grepl(pattern = ", \\w\\w", area_name))
+  class(tibble_county_data) <- c("county", class(tibble_county_data)) # Create the new class called county
+
+  # Here we are going to make the non-county level data
+  tibble_non_county_data <- tibble_long %>% 
+    filter(!grepl(pattern = ", \\w\\w", area_name))
+  class(tibble_non_county_data) <- c("state", class(tibble_non_county_data)) # Create the new class called state
+  
+  # Now combine our county-level function from before to get the state
+  tibble_county_data_updated <- find_state(tibble_county_data)
+  
+  # Now combine our non-county-level function from before to get the division
+  tibble_non_county_data_updated <- find_division(tibble_non_county_data)
+  
+  # Return the two tibbles
+  return(list(tibble_county_data_updated, tibble_non_county_data_updated))
+}
+```
+
+Now the last thing we are going to do is put all the functions into one function call. This will allow us to call only one function to get all the things we want with a URL we are reading in for our data. We are going to call this function `wrapping_data_processing_functions()`.
+```{r wrapping all functions 1}
+wrapping_data_processing_functions <- function(url, default_var_name = "county_and_state_level_education_data") {
+  # Read in the data through the url
+  tibble <- read_csv(url)
+  
+  # Now reshape the tibble with how we want it to look with columns selected and removing the duplicate row
+  tibble_long <- reshaping_data(tibble)
+  
+  # Now we want to find the year and survey type of the data
+  tibble_long_updated <- find_year_and_survey(tibble_long)
+  
+  # Lastly we want to split the data into county and non-county (state) level data and include necessary information
+  tibble_education_data_list <- split_into_level_type(tibble_long_updated)
+  
+  # Return the final list of two tibbles
+  return(tibble_education_data_list)
+}
+```
