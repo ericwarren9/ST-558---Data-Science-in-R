@@ -303,4 +303,15 @@ wrapping_data_processing_functions <- function(url, default_var_name = "county_a
 
 # Call it and Combine Your Data
 
-We are going to call the function we have made two times to read in and parse the two .csv files that have been mentioned so far. Be sure to call the new value column the same in both function calls.
+We are going to call the function we have made (`wrapping_data_processing_functions()`) two times to read in and parse the two .csv files that have been mentioned so far. Be sure to call the new value column the same in both function calls.
+```{r read in first 2 data sets 1}
+# Read in and show the first data set
+data1 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv")
+data1
+
+# Read in and show the second data set
+data2 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv")
+data2
+```
+
+Here we are going to write a single short function that takes in the results of two calls to your wrapper function. This function will combine the tibbles appropriately (that is the two county level data sets get combined and the two non-county level data sets get combined). This can easily be done using `dplyr::bind_rows()`. This new function, called `combining_education_data()` will return two data sets as one object (in the same format as the input data sets as we will be combining this output with more calls to the wrapper function in a bit).
