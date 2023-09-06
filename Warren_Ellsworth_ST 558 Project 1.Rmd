@@ -315,3 +315,31 @@ data2
 ```
 
 Here we are going to write a single short function that takes in the results of two calls to your wrapper function. This function will combine the tibbles appropriately (that is the two county level data sets get combined and the two non-county level data sets get combined). This can easily be done using `dplyr::bind_rows()`. This new function, called `combining_education_data()` will return two data sets as one object (in the same format as the input data sets as we will be combining this output with more calls to the wrapper function in a bit).
+```{r combine datasets function 1}
+combining_education_data <- function(data1, data2, ...){
+  # Here we are going to combine our data first to get it all together
+  combined_data <- dplyr::bind_rows(data1, data2)
+  
+  # Here we are going to split our data into county level and non-county level data
+  # First split into county level data
+  county_data <- combined_data %>% 
+    filter(grepl(pattern = ", \\w\\w", area_name)) %>%
+    select(-division)
+  class(county_data) <- c("county", class(county_data)) # Create the new class called county
+
+  # Here we are going to make the non-county level data
+  non_county_data <- combined_data %>% 
+    filter(!grepl(pattern = ", \\w\\w", area_name)) %>%
+    select(-state)
+  class(non_county_data) <- c("state", class(non_county_data)) # Create the new class called state
+  
+  # Return our two tibbles (can only do so in list format)
+  return(list(county_data, non_county_data))
+}
+```
+
+We are now going to call this function `combining_education_data()` to combine the result of the two calls to the wrapper function. We will show what our data now looks like below.
+```{r combining datasets 1}
+combined_data <- combining_education_data(data1, data2)
+combined_data
+```
