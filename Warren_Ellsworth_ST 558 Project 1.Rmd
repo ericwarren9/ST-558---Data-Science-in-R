@@ -303,4 +303,4 @@ wrapping_data_processing_functions <- function(url, default_var_name = "county_a
 
 # Call it and Combine Your Data
 
-We ae going to call the function we have made two times to read in and parse the two .csv files that have been mentioned so far. Be sure to call the new value column the same in both function calls.
+We are going to call the function we have made two times to read in and parse the two .csv files that have been mentioned so far. Be sure to call the new value column the same in both function calls.
