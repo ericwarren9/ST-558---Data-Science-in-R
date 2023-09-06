@@ -9,9 +9,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
-# Data Processing
+# Data Processing {.tabset .tabset-pills}
 
-## First Data Set {.tabset .tabset-pills}
+## First Data Set
 
 The first thing we are going to do is read in a section of the data that we are going to analyze and use to make function. The code we are using was given to us so we had the opportunity to access this data.
 ```{r read in 1}
@@ -300,3 +300,5 @@ wrapping_data_processing_functions <- function(url, default_var_name = "county_a
   return(tibble_education_data_list)
 }
 ```
+
+# Call it and Combine Your Data
