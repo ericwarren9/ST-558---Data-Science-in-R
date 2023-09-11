@@ -2,18 +2,32 @@
 title: "ST 558 Project 1"
 author: "Eric Warren and Chandler Ellsworth"
 date: '2023-09-12'
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    code_folding: show
+    theme: readable
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
+# Overall Goal  
+* Write functions that will manipulate and process data sets that come in a certain form  
+* Create a generic function to automatically plot the returned data
+
+We will be using csv files from the Census Bureaus. The first two data sets we use will contain information about public school enrollment while the last four will have information about resident population estimates.
+
+We will first read in and parse the data through separate tasks followed by doing the same thing on a similar data set but converting the tasks into functions that can be used to repeat the process through one function call. We will then call the functions made to read in and parse the enrollment data sets followed by creating a new function to combine them. From the combined data sets, we will write generic functions for summarizing and plotting based on the class object. The program will be concluded by putting all the newly created functions together and practicing on the resident population csv files. This will allow us to read in the data, process the data, combine the data, summarize the data, and lastly plot the data.
+
 # Data Processing
 
 ## First Data Set {.tabset .tabset-pills}
-
-The first thing we are going to do is read in a section of the data that we are going to analyze and use to make function. The code we are using was given to us so we had the opportunity to access this data.
+The first thing we are going to do is read in a section of the data that we are going to analyze and use to make a function.
 ```{r read in 1}
 library(readr)
 library(tidyverse)
@@ -21,10 +35,10 @@ library(tidyverse)
 sheet1 <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv")
 ```
 
-Now we are going to filter the duplicate row and select the following columns in order to trim the data we are analyzing. The columns we are using have at least one of the following characteristics:
-* `Area_name` (which we will rename as `area_name`)
-* `STCOU`
-* Any column that ends in “D”
+Now we are going to filter the duplicate row and select the following columns in order to trim the data we are analyzing. The columns we are using have at least one of the following characteristics:  
+* `Area_name` (which we will rename as `area_name`)  
+* `STCOU`  
+* Any column that ends in “D”  
 ```{r select columns 1}
 sheet1 <- sheet1 %>%
   filter(Area_name != "District of Columbia") %>%
@@ -34,9 +48,9 @@ sheet1 <- sheet1 %>%
 sheet1
 ```
 
-Now we can see how our data is structured. We can see that it is categorized with the country overall statistics first, then the state, and lastly county level data.
+We can see how our data is structured and that it is categorized with the country overall statistics first, then the state, and lastly county level data.
 
-Now we are going to convert the data into a *long format* where each row will have the `area_name` with only one enrollment value.
+Lets convert the data into a *long format* using the `pivot_longer` function where each row will have the `area_name` with only one enrollment value.
 ```{r long data 1}
 sheet1_long <- sheet1 %>%
   pivot_longer(
@@ -74,7 +88,7 @@ sheet1_long <- sheet1_long %>%
 sheet1_long
 ```
 
-Now we can see that our data has the year and the type of survey (or measurement of education) that was taken for corresponding areas. We now want to separate the data into two different tibbles. The first is one on a county level, which will be called `sheet1_county_data` and the other which is not county level data, which will be called `sheet1_not_county_data`. We will use the `filter()` and `grepl()` functions to find the pattern of "County Name, DD" to make that a part of `sheet1_county_data` and data that is not a part of this pattern a part of `sheet1_not_county_data`. We are also going to create a class called "county" for `sheet1_county_data` and a class called "state" for  `sheet1_not_county_data`.
+We can see that our data has the year and the type of survey (or measurement of education) that was taken for corresponding areas. We want to separate the data into two different tibbles. The first is one on a county level, which will be called `sheet1_county_data` and the other which is not county level data, which will be called `sheet1_not_county_data`. We will use the `filter()` and `grepl()` functions to find the pattern of "County Name, DD" to make that a part of `sheet1_county_data` and data that is not a part of this pattern a part of `sheet1_not_county_data`. We are also going to create a class called "county" for `sheet1_county_data` and a class called "state" for  `sheet1_not_county_data`.
 ```{r splitting data 1}
 # Here we are going to make the county level data
 sheet1_county_data <- sheet1_long %>% 
@@ -150,13 +164,12 @@ sheet1_not_county_data
 ```
 
 ## Second Data Set
-
-Now we want to repeat this process with using functions that we are going to create. Before we do that, we are going to do is read in our next section of data that we are going to analyze and use to make function. The code we are using is done the same procedure to read in the first section of data that was used in the previous section.
+Now we want to repeat this process with using functions that we are going to create. Before we do that, we are going to do is read in our next section of data that we are going to analyze and use to make function. The code we are using is the same that was used in the previous section.
 ```{r read in 2}
 sheet2 <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv")
 ```
 
-Now we are going to start making our functions to that did all the previous things we were asked to do for our first set of data. The first function we are going to create called `reshaping_data()` will dplyr::select the columns we need and then pivot the data into the longer format, like what was done in the previous section. We are also going to remove the duplicate row for the **"District of Columbia"**
+We are going to start making our functions to that did all the previous things we were asked to do for our first set of data. The first function we are going to create called `reshaping_data()` will dplyr::select the columns we need and then pivot the data into the longer format, like what was done in the previous section. We are also going to remove the duplicate row for the **"District of Columbia"**
 ```{r reshaping data function 1}
 reshaping_data <- function(tibble, value_column = "enrollment") {
   # Here we are selecting and renaming our desired columns
@@ -176,7 +189,7 @@ reshaping_data <- function(tibble, value_column = "enrollment") {
 }
 ```
 
-Now we want to create another function, which will be called `find_year_and_survey()`. This function will allow us to parse the `education_measurement` column to first have the type of survey which is the first three letters followed by the next four digits and then also pull the year from the third to last and second to last elements in the string. We will be using the `substr()` function within our newly created function to do this. Lastly, we are going to use the `dplyr::select()` and `everything()` functions within our function to reorder the columns to make it easier to follow. This part is our personal preference, as we did before with the first data set.
+We want to create another function, which will be called `find_year_and_survey()`. This function will allow us to parse the `education_measurement` column to first have the type of survey which is the first three letters followed by the next four digits and then also pull the year from the third to last and second to last elements in the string. We will be using the `substr()` function within our newly created function to do this. Lastly, we are going to use the `dplyr::select()` and `everything()` functions within our function to reorder the columns to make it easier to follow. This part is our personal preference, as we did before with the first data set.
 ```{r function to get year and survey 1}
 find_year_and_survey <- function(tibble_long) {
   # Now get the year from the education_measurement column
@@ -201,7 +214,7 @@ find_year_and_survey <- function(tibble_long) {
 }
 ```
 
-Now for the county-level tibble, we are going to create a function called `find_state()` which will allow us to create a new variable called `state` that describes which state one of these county measurements corresponds to using `substr()` within our function. We are also going to reorder the columns to put the new `state` variable next to the `area_name` or county of that state.
+For the county-level tibble, we are going to create a function called `find_state()` which will allow us to create a new variable called `state` that describes which state one of these county measurements corresponds to using `substr()` within our function. We are also going to reorder the columns to put the new `state` variable next to the `area_name` or county of that state.
 ```{r function to find state 1}
 find_state <- function(tibble_county_data) {
   # Get the state from each county and make it a new column
@@ -308,81 +321,117 @@ wrapping_data_processing_functions <- function(url, var_name = "enrollment") {
 }
 ```
 
+# Call it and Combine Our Data
+Call the `wrapping_data_processing_functions` two times to read in and parse the two .csv files we have previously worked with and store them in objects to be combined later.
 ```{r}
-combine_census <- function(wrapper1, wrapper2) {
-  county_data_merge <- dplyr::bind_rows(wrapper1[["county"]], wrapper2[["county"]])
-  non_county_data_merge <- dplyr::bind_rows(wrapper1[["state"]], wrapper2[["state"]])
-  
-  return(list(county = county_data_merge, state = non_county_data_merge))
-}
+test1 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv",
+                                               var_name = "enrollment")
+test2 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv",
+                                               var_name = "enrollment")
+
 ```
 
+Write a short function called `combine_census` that takes the results of the two calls to our `wrapping_data_processing_functions` and combines the tibbles. That is, the two county level data sets get combined and the two non-county level data sets get combined. 
+```{r write combine_census function}
+combine_census <- function(wrapper1, wrapper2) {
+  #use dplyr bind_rows to combine tibbles, here indexing on the returned list from the wrapper function for county
+  county_data_merge <- dplyr::bind_rows(wrapper1[["county"]], wrapper2[["county"]])
+  #index the list for the named element state
+  non_county_data_merge <- dplyr::bind_rows(wrapper1[["state"]], wrapper2[["state"]])
+  #retrun the two data sets as one object using list function
+  return(list(county = county_data_merge, state = non_county_data_merge))
+}
 
-```{r}
+#call the combine_census function to combine the result of the two calls to the wrapper function
+test3 <- combine_census(test1, test2)
+test3
+```
+
+# Writing a Generic Function for Summarizing
+Since we have our own classes for `county` and `state`, we can write our own custom plot function for these using by adding a method to the `plot` function. For the state plotting method, we want to write a function that plots the mean value of the enrollment statistic across the `years` for each `Division`.
+```{r write plot state function}
+#add the .state method to the plot function, adding an argument for which variable we want to calculate the mean for
 plot.state <- function(df, var_name = "enrollment") {
   new_df <- df %>%
+    #since we want the mean for each year and division, group by these variables
     group_by(division, year) %>%
+    #use the summarise function to calculate the mean and the get function to reference the var_name
     summarise(avg_enrollment = mean(get(var_name))) %>%
+    #use the filter function to remove the ERROR setting of the Division variable
     filter(division != "ERROR")
-  
+  #use ggpplot to plot the numeric year value on the x-axis, and the mean of the statistic for each Division and numeric year on the y-axis
   ggplot(new_df, aes(x = year, y = avg_enrollment, color = division)) + 
     geom_line()
 }
 ```
 
-```{r}
+For the class county, we want to do a similar plotting function but with more flexibility. This function should allow the user to specify the `state` of interest, determine whether the `top` or `bottom` most `counties` should be looked at, and instruct how many of the top or bottom will be investigated.
+```{r write plot county function}
+#specify default arguments as enrollment, AL, top, and 5 for the arguments included for the function
 plot.county <- function(df, var_name = "enrollment", filter_state = "AL", filter_county = "top", filter_value = 5) {
-  
+#return a 1 if top is selected, 0 for bottom using the ifelse base r function, and the stop function to end the task if top or bottom is not used properly. this object will be used to multiply against the statistic vector created below to determine descending or ascending order
 filter_multiplier <- ifelse(filter_county == "top", 1,
                             ifelse(filter_county == "bottom", 0,
                                    stop("Must select either 'top' or 'bottom' as options for filter_county; default is 'top'")))
-
- new_df <- df %>%
-    filter(state == filter_state) %>%
-    group_by(area_name) %>%
-    summarise(avg_enrollment = mean(get(var_name))) %>%
-    arrange(if_else((avg_enrollment * filter_multiplier) > 0, desc(avg_enrollment), avg_enrollment)) %>%
-    slice(1:filter_value)
- 
- filtered_df <- df %>%
-   filter((state == filter_state) & (area_name %in% new_df$area_name))
- 
- ggplot(filtered_df, aes(x = year, y = get(var_name), color = area_name)) + 
+new_df <- df %>%
+  #filter the county data to only include data from the state specified
+  filter(state == filter_state) %>%
+  #group by the area name
+  group_by(area_name) %>%
+  #use the summarise function to find the overall mean of the variable specified, using the get function here as well
+  summarise(avg_enrollment = mean(get(var_name))) %>%
+  #sort the summarise statistic vector using the arrange function from largest to smallest if top (1 in filter_multiplier) is specified or smallest to largest if bottom (0 in the filter_multiplier) is specified. the value stored in filter_multiplier will allow us to run a conditional argument on a vector (avg_enrollment) where we check if the returned vector multiplied by the filter_multiplier is 0 for all values, or anything other than 0. in order to sort the statistic values from largest to smallest, use the desc function since smallest to largest is the default for the arrange function
+  arrange(if_else((avg_enrollment * filter_multiplier) > 0, desc(avg_enrollment), avg_enrollment)) %>%
+  #obtain the top or bottom x number of area_name from the previous step indexing from 1 to the filter_value given by the user or the default value
+  slice(1:filter_value)
+#filter the data to only include the state specified by the user and the area_name's found in new_df (previous part)
+filtered_df <- df %>%
+  filter((state == filter_state) & (area_name %in% new_df$area_name))
+#use ggpplot to plot the numeric year value on the x-axis, and the numeric variable specified under var_name on the y-axis where a different color is used for each area_name
+ggplot(filtered_df, aes(x = year, y = get(var_name), color = area_name)) + 
    geom_line()
 }
 ```
 
-
+# Put it Together
+Here we will combine all the newly created functions to do all of the above in a few function calls. First we will run our data processing function (`wrapping_data_processing_functions`) on the two enrollment URLs used previously, specifying the name for the enrollment column. We will then use our coming function (`combine_census`) to put these into one object with two data frames.
 ```{r}
 wrapper1 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv",
                                                var_name = "enrollment")
 wrapper2 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv",
                                                var_name = "enrollment")
-
 data_combine <- combine_census(wrapper1, wrapper2)
+
 ```
 
-
+Use the plot function on the `state` data frame
 ```{r}
+#index using the named second list element, "state"
 plot(data_combine[["state"]])
 ```
 
+Use the plot function on the `county` data frame using `NC` as the state, `top` being the group, and `10` as the number looked at
 ```{r}
+#index using the named second list element, "county"
 plot(data_combine[["county"]], filter_state = "NC", filter_county = "top", filter_value = 10)
 ```
 
+Use the plot function on the `county` data frame using `AZ` as the state, `bottom` being the group, and `6` as the number looked at
 ```{r}
 plot(data_combine[["county"]], filter_state = "AZ", filter_county = "bottom", filter_value = 6)
 ```
 
+Use the plot function on the `county` data frame using only the default values for the arguments
 ```{r}
 plot(data_combine[["county"]])
 ```
 
+Use the plot function on the `county` data frame using `OH` as the state, `top` being the group, and `8` as the number looked at
 ```{r}
 plot(data_combine[["county"]], filter_state = "OH", filter_county = "top", filter_value = 8)
 ```
 
+Lets read in and combine another couple data sets using the `wrapping_data_processing_functions` and `conbine_census` functions and apply these functions by reading in four other data sets at the URLs given below
 ```{r}
 wrapper3 <- wrapping_data_processing_functions("https://www4.stat.ncsu.edu/~online/datasets/PST01a.csv",
                                                var_name = "enrollment")
@@ -398,22 +447,27 @@ data_combine3 <- combine_census(data_combine2, wrapper5)
 data_combine4 <- combine_census(data_combine3, wrapper6)
 ```
 
+Use the plot function on the `state` data frame
 ```{r}
 plot(data_combine4[["state"]])
 ```
 
+Use the plot function on the `county` data frame using `PA` as the state, `top` being the group, and `5` as the number looked at
 ```{r}
 plot(data_combine4[["county"]], filter_state = "PA", filter_county = "top", filter_value = 5)
 ```
 
+Use the plot function on the `county` data frame using `TX` as the state, `bottom` being the group, and `12` as the number looked at
 ```{r}
 plot(data_combine4[["county"]], filter_state = "TX", filter_county = "bottom", filter_value = 12)
 ```
 
+Use the plot function on the `county` data frame using only the default values for the arguments
 ```{r}
 plot(data_combine4[["county"]])
 ```
 
+Use the plot function on the `county` data frame using `NY` as the state, `top` being the group, and `6` as the number looked at
 ```{r}
 plot(data_combine4[["county"]], filter_state = "NY", filter_county = "top", filter_value = 6)
 ```
