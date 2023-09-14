@@ -9,7 +9,7 @@ output:
     toc_float: true
     code_folding: show
     theme: readable
-    df_print: paged
+    df_print: tibble
 ---
 
 ```{r setup, include=FALSE}
@@ -28,44 +28,39 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 ## Glass Data
 
-1. Here we are going to read in our `glass data` and do some manipulations to it. After looking at the ![Glass Data](www4.stat.ncsu.edu/~online/datasets/glass.data), we can see that this is comma delimited so we should use the `read_csv()` function from the `tidyverse` library.
+1. Here we are going to read in our `glass_data` and do some manipulations to it. After looking at the ![Glass Data](https://www4.stat.ncsu.edu/~online/datasets/glass.data), we can see that this is comma delimited so we should use the `read_csv()` function from the `tidyverse` library.
 ```{r read in glass data}
 library(tidyverse)
 col_names <- c("Id", "RI", "Na", "Mg", "Al", "Si", "K", "Ca", "Ba", "Fe", "Type_of_glass")
-glassData <- read_csv("www4.stat.ncsu.edu/~online/datasets/glass.data", 
-                      col_names = col_names)
-glassData
+glass_data <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/glass.data", col_names = col_names)
+glass_data
 ```
 
 2. We are going to overwrite the `Type_of_glass` variable by creating a `factor` here instead. We are going to use the variable descriptions above to give meaningful factor levels.
 ```{r making factors for glass data}
-levels <- c("building_windows_float_processed", "building_windows_non_float_processed", "vehicle_windows_float_processed", "containers", "tableware", "headlamps")
-labels <- c("building_windows_float", "building_windows_non_float", "vehicle_windows_float", "containers", "tableware", "headlamps")
-glassData$Type_of_glass <- glassData %>%
-  factor(Type_of_glass, 
-         levels = levels,
-         labels = labels)
+levels <- c(1, 2, 3, 5, 6, 7)
+labels <- c("building_windows_float_processed", "building_windows_non_float_processed", "vehicle_windows_float_processed", "containers", "tableware", "headlamps")
+glass_data$Type_of_glass <- factor(glass_data$Type_of_glass, levels = levels, labels = labels)
 ```
 
 3. Print the data frame with only observations where the `Fe` variable is less than 0.2 and the `Type_of_glass` is either tableware or headlamp.
 ```{r print filtered df}
-glassData %>%
+glass_data %>%
   filter((Fe < 0.2) & (Type_of_glass %in% c("tableware", "headlamps")))
 ```
 
 ## Yeast Data
 
-1. Here we are going to read in our `yeast data` and do some manipulations to it. After looking at the ![Yeast Data](www4.stat.ncsu.edu/~online/datasets/yeast.data), we can see that this is a fixed width file so we should use the `read_fwf()` function from the `tidyverse` library.
+1. Here we are going to read in our `yeast_data` and do some manipulations to it. After looking at the ![Yeast Data](https://www4.stat.ncsu.edu/~online/datasets/yeast.data), we can see that this is a tab delimited file (in the form of a table) so we should use the `read_table()` function from the `tidyverse` library.
 ```{r read in yeast data}
 col_names2 <- c("seq_name", "mcg", "gvh", "alm", "mit", "erl", "pox", "vac", "nuc", "class")
-yeastData <- read_fwf("www4.stat.ncsu.edu/~online/datasets/yeast.data", 
-                      col_names = col_names2)
-yeastData
+yeast_data <- read_table("https://www4.stat.ncsu.edu/~online/datasets/yeast.data", col_names = col_names2)
+yeast_data
 ```
 
 2. Select only the `class` and `mcg` columns. Report the mean and standard deviation of the `mcg` value for each setting of the `class` variable. We will use the `summarize()` function to do this.
 ```{r summarize yeast}
-yeastData %>%
+yeast_data %>%
   select(mcg, class) %>%
   group_by(class) %>%
   summarize(mean = mean(mcg),
@@ -78,34 +73,57 @@ We are now working with `SQLite` by using a database called `chinook`. This data
 
 1. First we are going to download the `chinook.db` database. We will also need to load in the `DBI` and `RSQLite` libraries and use `tidyverse` from before. We are going to use the `dbConnect()` function to connect to the local database.
 ```{r load in database}
+# Load in libraries needed
+library(DBI)
+library(RSQLite)
 
+# Connect to database
+con <- DBI::dbConnect(RSQLite::SQLite(), "chinook.db")
 ```
 
 2. Now we will print out the tables in the database using `dbListTables()`.
 ```{r print tables in database}
-
+dbListTables(con)
 ```
 
 3. Use `dbGetQuery()` or `tbl()` to grab and print out the `invoices` table and the `customers` table.
 ```{r grab needed tables from database}
+# Invoices table
+chinook_invoices <- tbl(con, "invoices")
+chinook_invoices
 
+# Customers table
+chinook_customers <- tbl(con, "customers")
+chinook_customers
 ```
 
 4. Use an `inner_join()` to combine the two tables above by the `CustomerID` variable
 ```{r combine tables from database}
-
+chinook_data <- inner_join(chinook_invoices, chinook_customers, by = "CustomerId")
+chinook_data
 ```
 
 # Part 4 - Querying an API
 
-For this section we will connect to the news API we connected to in our lecture. We will need to go to to ![newsapi.org](newsapi.org).
+For this section we will connect to the news API we connected to in our lecture. We will need to go to to ![newsapi.org](https://newsapi.org).
 
 1. Use `GET` from the `httr` package to return information about a topic of interest from the news lately. With our free account we can only find information from the past 30 days.
 ```{r news api topic returned}
-
+library(httr)
+api_data <- httr::GET("https://newsapi.org/v2/top-headlines?country=us&category=business&apiKey=30f54a89a7db4753887e12893d5b3afc")
 ```
 
 2. Find our way to the data frame that has the actual article information in it. This time, save that R object. Select only the `source`, `author`, and `title` columns and print the tibble out.
 ```{r print news api}
+library(jsonlite)
+# Parse to the content from the api
+parsed <- fromJSON(rawToChar(api_data$content))
 
+# Get the data frame and save it
+data_frame_api <- parsed$articles
+
+# Print this new data frame out with selected columns
+data_frame_api %>%
+  as_tibble() %>%
+  select(source, author, title)
 ```
