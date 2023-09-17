@@ -1,0 +1,126 @@
+---
+title: "ST 558 Homework 5"
+author: "Eric Warren"
+date: '2023-09-28'
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: show
+    theme: readable
+    df_print: tibble
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Task 1 - Reading in the Data
+
+We are going to read in and modify our code in two ways.
+
+- The first way we are going to do it is by modifying the code provided with the download to read in the data from a local file source (our downloaded .csv files) and combine the two data frames. We will use local paths as they do in their code.
+```{r read in 1}
+library(tidyverse)
+# Read in both tables
+math_scores <- read.table("student-mat.csv", sep=";", header=TRUE)
+port_scores <- read.table("student-por.csv", sep=";", header=TRUE)
+
+# Combine the data together
+combined_scores <- merge(math_scores, 
+                         port_scores, 
+                         by = c("school", "sex", "age", "address", "famsize", "Pstatus", "Medu", "Fedu", "Mjob", "Fjob", "reason", "nursery", "internet"))
+
+# Change the data to a tibble and print the combined data
+combined_scores <- as_tibble(combined_scores)
+combined_scores
+```
+
+- Now we are going to read in and combine the data using functions from the tidyverse. Use an `dplyr::inner_join()` on the variables they used in their code. Do you notice any issues? Make a note of the issue.
+```{r read in 2, warning=TRUE}
+# Read in the data
+math_scores2 <- read_delim("student-mat.csv", delim = ";")
+port_scores2 <- read_delim("student-por.csv", delim = ";")
+
+# Combine the data using dplyr::inner_join()
+combined_scores2 <- dplyr::inner_join(math_scores, port_scores, by = c("school", "sex", "age", "address", "famsize", "Pstatus", "Medu", "Fedu", "Mjob", "Fjob", "reason", "nursery", "internet"))
+
+# Show the multiple columns
+combined_scores2
+```
+
+Here we can see that there is a many to many relationship between both datasets that are in question. This creates another set of extra columns that are created with duplicate data. 
+
+- We are going to fix this by having all the by variables being all of them except `absences`, `G1`, `G2`, and `G3`.
+```{r recombine}
+# Select the variables we need to join by
+combined_variables <- math_scores2 %>% 
+  select(-c(G1, G2, G3, absences)) %>%
+  colnames()
+
+# Make the new combined data set with these variables
+combined_scores3 <- dplyr::inner_join(math_scores2, port_scores2, by = combined_variables)
+
+# Show this new data set
+combined_scores3
+```
+
+As we can see, the data for the combined data set is now in the correct form. 
+
+- We are now going to pick 4 categorical variables we are interested in. Those will be `sex`, `famsize`, `higher`, `internet` and we are going to turn them into factors to make it easier to analyze. We are using the `mutate()` function to do this.
+```{r factor variables}
+# Change the math scores
+math_scores2 <- math_scores2 %>%
+  mutate(sex = as.factor(sex),
+         famsize = as.factor(famsize),
+         higher = as.factor(higher),
+         internet = as.factor(internet))
+
+# Change the Portuguese scores
+port_scores2 <- port_scores2 %>%
+  mutate(sex = as.factor(sex),
+         famsize = as.factor(famsize),
+         higher = as.factor(higher),
+         internet = as.factor(internet))
+
+# Change the combined data set
+combined_scores3 <- combined_scores3 %>%
+  mutate(sex = as.factor(sex),
+         famsize = as.factor(famsize),
+         higher = as.factor(higher),
+         internet = as.factor(internet))
+```
+
+# Task 2 - Summarize the Data (Very Basic EDA)
+
+We’ve talked about summarizing data. That’s the essential idea of an exploratory data analysis (EDA). We try to understand numerically and visually the data we are working with. For now we’ll do a basic EDA by doing the following on the combined data (`combined_scores3`):
+
+## Categorical Variables
+
+- Here we are going to create a one-way contingency table, a two-way contingency table, and a three-way contingency table for some of the factor variables we created previously. Use `table()` to accomplish this. 
+
+  - Here we are going to create a one-way table based on `sex`.
+```{r one way table}
+tbl1 <- table(combined_scores3$sex)
+tbl1
+```
+
+As we can see here, the breakdown of males and females as students is about even with `r round(100 * tbl1[[2]] / nrow(combined_scores3), 2)`% of the data being males and the rest (or `r round(100 * tbl1[[1]] / nrow(combined_scores3), 2)`%) being females. So as we can see it is fairly even.
+
+  - Here we are going to create a two-way tables based on `sex` and `internet`.
+```{r two way table}
+tbl2 <- table(combined_scores3$sex, combined_scores3$internet)
+tbl2
+```
+
+As we can see here, the breakdown of males and females with internet is about even, but people tend to have more internet access than those who don't. We can see that `r round(100 * tbl2[[3]] / tbl1[[1]], 2)`% of females have internet and `r round(100 * tbl2[[4]] / tbl1[[2]], 2)`% of males have internet. So this shows that most students do have this access with both sexes having this access.
+
+  - Here we are going to create a three-way tables based on `sex`, `internet`, and `higher`.
+```{r three way table}
+tbl3 <- table(combined_scores3$sex, combined_scores3$internet, combined_scores3$higher)
+tbl3
+```
+
+When looking at this table, it is interesting to see that students mostly want to take higher level classes. Very few students are not interested in doing so. We can also see that all students who are not interested in higher level courses all have internet. This is an interesting trend to look at but the small sample size might cause this and not actually be normal.
+
