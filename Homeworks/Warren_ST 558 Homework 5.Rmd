@@ -62,6 +62,11 @@ combined_variables <- math_scores2 %>%
 # Make the new combined data set with these variables
 combined_scores3 <- dplyr::inner_join(math_scores2, port_scores2, by = combined_variables)
 
+# Rename .x and .y columns
+colnames(combined_scores3) <- gsub('.x', '.math', colnames(combined_scores3))
+colnames(combined_scores3)[2] <- "sex"
+colnames(combined_scores3) <- gsub('.y', '.port', colnames(combined_scores3))
+
 # Show this new data set
 combined_scores3
 ```
@@ -72,24 +77,24 @@ As we can see, the data for the combined data set is now in the correct form.
 ```{r factor variables}
 # Change the math scores
 math_scores2 <- math_scores2 %>%
-  mutate(sex = as.factor(sex),
-         famsize = as.factor(famsize),
-         higher = as.factor(higher),
-         internet = as.factor(internet))
+  mutate(sex = factor(sex, labels = c("Female", "Male")),
+         famsize = factor(famsize),
+         higher = factor(higher),
+         internet = factor(internet))
 
 # Change the Portuguese scores
 port_scores2 <- port_scores2 %>%
-  mutate(sex = as.factor(sex),
-         famsize = as.factor(famsize),
-         higher = as.factor(higher),
-         internet = as.factor(internet))
+  mutate(sex = factor(sex, labels = c("Female", "Male")),
+         famsize = factor(famsize),
+         higher = factor(higher),
+         internet = factor(internet))
 
 # Change the combined data set
 combined_scores3 <- combined_scores3 %>%
-  mutate(sex = as.factor(sex),
-         famsize = as.factor(famsize),
-         higher = as.factor(higher),
-         internet = as.factor(internet))
+  mutate(sex = factor(sex, labels = c("Female", "Male")),
+         famsize = factor(famsize),
+         higher = factor(higher),
+         internet = factor(internet))
 ```
 
 # Task 2 - Summarize the Data (Very Basic EDA)
@@ -98,9 +103,9 @@ We’ve talked about summarizing data. That’s the essential idea of an explora
 
 ## Categorical Variables
 
-- Here we are going to create a one-way contingency table, a two-way contingency table, and a three-way contingency table for some of the factor variables we created previously. Use `table()` to accomplish this. 
+Here we are going to create a one-way contingency table, a two-way contingency table, and a three-way contingency table for some of the factor variables we created previously. Use `table()` to accomplish this. 
 
-  - Here we are going to create a one-way table based on `sex`.
+- Here we are going to create a one-way table based on `sex`.
 ```{r one way table}
 tbl1 <- table(combined_scores3$sex)
 tbl1
@@ -124,3 +129,177 @@ tbl3
 
 When looking at this table, it is interesting to see that students mostly want to take higher level classes. Very few students are not interested in doing so. We can also see that all students who are not interested in higher level courses all have internet. This is an interesting trend to look at but the small sample size might cause this and not actually be normal.
 
+Here we are going to create a conditional two-way table using `table()`. That is, condition on one variable’s setting and create a two-way table. Do this using two different methods:
+
+- Once, by subsetting the data (say with `filter()`) and then creating the two-way table
+```{r filter table 1}
+#filter the data by higher = yes
+filter_combined_scores <- combined_scores3 %>% 
+  filter(higher == "yes")
+
+#Make table of filtered data
+table(filter_combined_scores$sex, filter_combined_scores$internet)
+```
+
+As we can see this two way table shows the breakdown of the sex of a student and whether they have internet or not. This breakdown is conditioned on if the student wants to take higher education classes. This is very similar to our three-way contingency table where it was the second part of the table of ` , , = yes`.
+
+  - Once, by creating a three-way table and subsetting it. Note, we have already created a three-way table called `tbl3` but we will recall it in so users can remember this. Then we will subset it by saying that `higher = yes` from before.
+```{r three way table into two way table}
+# Recall the three way table
+tbl3 <- table(combined_scores3$sex, combined_scores3$internet, combined_scores3$higher)
+
+# Produce subset table with higher = yes
+tbl3[ , , "yes"]
+```
+
+As we can see this two way table shows the breakdown of the sex of a student and whether they have internet or not. This breakdown is conditioned on if the student wants to take higher education classes. This is the exact same as our two-way table above where we used `filter` to subset the data.
+
+Now we are going to create a two-way contingency table using `group_by()` and `summarize()` from dplyr. Then use `pivot_wider()` to make the result look more like the output from `table()`. 
+```{r summarize to table}
+combined_scores3 %>%
+  group_by(sex, internet) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = internet, values_from = count)
+```
+
+As we can see this looks very similar to our two way tables created from before. Actually if we look at our two way table created before without values being filtered (`tbl2`).
+```{r show tbl 2 again}
+tbl2
+```
+
+Again we can see doing this `group_by()`, `summarize()`, and `pivot_wider()` method basically shows the same thing (other than how the object is being stored) as if we just use the `tbl()` function.
+
+Now we are going to create a stacked bar graph and a side-by-side bar graph. Give relevant x and y labels, and a title for the plots.
+
+- First we will show the stacked bar graph. We will have the x-axis be the `sex` of the student and the grouping variable or what we will call the fill section being `internet` access.
+```{r stacked bar plot}
+ggplot(combined_scores3, aes(x = sex)) +
+  geom_bar(position = "stack", aes(fill = internet)) +
+  labs(x = "Sex of Student",
+       y = "Number of Students",
+       fill = "Internet Access?",
+       title = "Breakdown of Student's Internet Access by Sex") +
+  theme_bw()
+```
+
+Our big takeaway from this graph is that there are a larger proportion of female students who do not have internet access.
+
+- Now we are going to make a side by side bar plot. This will again show (like the stacked bar plot) the x-axis being the `sex` of the student and the grouping variable or what we will call the fill section being `internet` access.
+```{r side by side bar plot}
+ggplot(combined_scores3, aes(x = sex)) +
+  geom_bar(position = "dodge", aes(fill = internet)) +
+  labs(x = "Sex of Student",
+       y = "Number of Students",
+       fill = "Internet Access?",
+       title = "Breakdown of Student's Internet Access by Sex") +
+  theme_bw()
+```
+
+This gives a nicer representation showing that both sexes of students have internet access with slightly more males who have it and slightly more females who do not. The stacked barplot in my opinion shows the proportions better while the side-by-side barplot shows the number of each category better.
+
+## Numeric Variables
+
+The numeric variables are `age`, `absences`, and the three test grades variables (`G1`, `G2`, and `G3`) from each data set (math and Portuguesse).
+
+Find measures of center and spread for three of these variables (including at least one G3 variable). For the measure of center we will find the **mean** and for the spread we will find the **standard deviation**. The variables we will look at is `absences`, `G1`, and `G3` all from the math scores (since I like math better and thought it would be more interesting to look at this).
+```{r math scores 1}
+math_scores2 %>%
+  select(absences, G1, G3) %>%
+  summarise_all(list(mean = mean, stddev = sd)) %>%
+  pivot_longer(names_to = "measure", values_to = "output", cols = absences_mean:G3_stddev) %>%
+  separate(measure, c("variable", "statistic"), "_") %>%
+  pivot_wider(names_from = "statistic", values_from = "output")
+```
+
+Here we can see that the spread in `absences` is very large. This makes us think some outliers could be present with a standard deviation so much higher than the mean. The mean scores between `G1` and `G3` are fairly close but the spread in scores is much larger. Scores are given from 0-20 so we could also guess more students might have scored higher on `G3` than `G1` (assuming normality using the Central Limit Theorem) but also the reverse or more students scoring worse (which could bring down the average and increase the spread in our data).
+
+Now we are going to repeat while subsetting the data in a meaningful way. Since the `absences` spread is so high (since it can be between 0 and 93), we should definitely look at students who show up to school. In North Carolina Public Schools, you are only allowed to miss 10 days of school before a note is sent out and possible discipline occurs. Since that also seems like a good amount, I will subset for all students with 10 or less days missed (`filter(absences <= 10)`). We will now take a look at this new subset of data to see how students are doing and if it makes a difference.
+```{r math scores 2}
+math_scores2 %>%
+  filter(absences <= 10) %>%
+  select(absences, G1, G3) %>%
+  summarise_all(list(mean = mean, stddev = sd)) %>%
+  pivot_longer(names_to = "measure", values_to = "output", cols = absences_mean:G3_stddev) %>%
+  separate(measure, c("variable", "statistic"), "_") %>%
+  pivot_wider(names_from = "statistic", values_from = "output")
+```
+
+As we can see now, removing the large absence amounts show that students do not miss many days. The test scores are about the same as before (going up roughly a tenth of a point on average), but the spread (standard deviation) goes up because we have less students in our data set (which shows this wide range of scores still exists and is not because of students missing school).
+
+Find measures of center and spread across a single grouping variable for three of these variables (including a G3 variable as one of them). For the measure of center we will find the **mean** and for the spread we will find the **standard deviation**. The variables we will look at is `absences`, `G1`, and `G3` all from the math scores (as we did before to keep it consistent). Our grouping variable will now be the `sex` of the student.
+```{r math scores grouped}
+math_scores2 %>%
+  select(sex, absences, G1, G3) %>%
+  group_by(sex) %>%
+  summarise_all(list(mean = mean, stddev = sd)) %>%
+  pivot_longer(names_to = "measure", values_to = "output", cols = absences_mean:G3_stddev) %>%
+  separate(measure, c("variable", "statistic"), "_") %>%
+  pivot_wider(names_from = "statistic", values_from = "output")
+```
+
+As we can see, females on average have more `absences` but their standard deviation is much larger meaning they probably had more outliers to drive up this total. The female grades on both exams (`G1` and `G3`) were also lower than male counterparts with the spreads not being too far off. Our initial hunch before doing any statistical testing to back up the claim is that males might score better on math tests than females.
+
+Find measures of center and spread across two grouping variables for three of these variables (including a G3 variable as one of them). For the measure of center we will find the **mean** and for the spread we will find the **standard deviation**. The variables we will look at is `absences`, `G1`, and `G3` all from the math scores (as we did before to keep it consistent). Our grouping variables will now be the `sex` of the student (from before) and if the student wants to take higher education classes (`higher`).
+```{r math scores grouped 2}
+math_scores2 %>%
+  select(sex, higher, absences, G1, G3) %>%
+  group_by(sex, higher) %>%
+  summarise_all(list(mean = mean, stddev = sd)) %>%
+  pivot_longer(names_to = "measure", values_to = "output", cols = absences_mean:G3_stddev) %>%
+  separate(measure, c("variable", "statistic"), "_") %>%
+  pivot_wider(names_from = "statistic", values_from = "output")
+```
+
+We can see that males tend to score better than females if a student wants to take higher education classes, but females tend to do better if a student does not want to take higher education classes. It is not surprising for females that students who do *not* want to take higher education classes have more absences (except the extremely large spread is probably do a large outlier and small number of people in this category). It is surprising for males though that students who might not like school as much (those not planning on taking higher education classes) have on average less absences than male students who do.
+
+Create a correlation matrix between all of the numeric variables which said before were `absences`, `age`, `G1`, `G2`, and `G3`.
+
+- First we will do it for the `math` variables.
+```{r math correlation matrix}
+# Get correlations for all numeric data
+numeric_vars <- c("absences", "age", "G1", "G2", "G3")
+correlation_math <- cor(select(math_scores2, all_of(numeric_vars)), method = "spearman") 
+correlation_math # Correlation matrix
+
+# Make correlation matrix plot
+library(corrplot)
+corrplot(correlation_math)
+corrplot(correlation_math, type = "lower", method = "number", add = TRUE, diag = FALSE, tl.pos = "n")
+```
+
+We can see from this that there is a lot of correlation between the `G1`, `G2`, and `G3` scores but not the `age` or `absences`.
+
+- Next we will do it for the `port` variables.
+```{r port correlation matrix}
+# Get correlations for all numeric data
+numeric_vars <- c("absences", "age", "G1", "G2", "G3")
+correlation_port <- cor(select(port_scores2, all_of(numeric_vars)), method = "spearman") 
+correlation_port # Correlation matrix
+
+# Make correlation matrix plot
+library(corrplot)
+corrplot(correlation_port)
+corrplot(correlation_port, type = "lower", method = "number", add = TRUE, diag = FALSE, tl.pos = "n")
+```
+Same as math, we can see from this that there is a lot of correlation between the `G1`, `G2`, and `G3` scores but not the `age` or `absences`.
+
+- Lastly, we will do it for the `combined` variables.
+```{r combined correlation matrix}
+# Get correlations for all numeric data
+correlation_both <- cor(select(combined_scores3, c("age", contains("G1"), contains("G2"), contains("G3"), contains("absences"))), method = "spearman")
+correlation_both # Correlation matrix
+
+# Make correlation matrix plot
+library(corrplot)
+corrplot(correlation_both)
+corrplot(correlation_both, type = "lower", method = "number", add = TRUE, diag = FALSE, tl.pos = "n")
+```
+
+We can actually see that there is a fair amount of correlation between the `G1`, `G2`, and `G3` scores for math and Portuguese. This might show that students who do well in one subject will do well in the other and vice versa. We should explore this trend more later on if we want to conclude this.
+
+Now we are going to create a histogram, kernel density plot, and boxplot for two of the numeric variables across one of the categorical variables (that is, create graphs that can compare the distributions across the groups on the same plot (no faceting here)). Add appropriate labels and titles. For the purpose of our plots we are going to look at the categorical variable of `sex` and the two numerical variables of `G1` and `G3` for the math data set.
+```{r make hist density and boxplot plots}
+ggplot(math_scores2) +
+  geom_histogram(aes(x = G1, fill = sex), col = "yellow") +
+  theme_bw()
+```
