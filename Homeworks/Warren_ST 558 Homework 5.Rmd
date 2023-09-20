@@ -281,6 +281,7 @@ library(corrplot)
 corrplot(correlation_port)
 corrplot(correlation_port, type = "lower", method = "number", add = TRUE, diag = FALSE, tl.pos = "n")
 ```
+
 Same as math, we can see from this that there is a lot of correlation between the `G1`, `G2`, and `G3` scores but not the `age` or `absences`.
 
 - Lastly, we will do it for the `combined` variables.
@@ -297,9 +298,210 @@ corrplot(correlation_both, type = "lower", method = "number", add = TRUE, diag =
 
 We can actually see that there is a fair amount of correlation between the `G1`, `G2`, and `G3` scores for math and Portuguese. This might show that students who do well in one subject will do well in the other and vice versa. We should explore this trend more later on if we want to conclude this.
 
-Now we are going to create a histogram, kernel density plot, and boxplot for two of the numeric variables across one of the categorical variables (that is, create graphs that can compare the distributions across the groups on the same plot (no faceting here)). Add appropriate labels and titles. For the purpose of our plots we are going to look at the categorical variable of `sex` and the two numerical variables of `G1` and `G3` for the math data set.
-```{r make hist density and boxplot plots}
+-Now we are going to create a histogram, kernel density plot, and boxplot for two of the numeric variables across one of the categorical variables (that is, create graphs that can compare the distributions across the groups on the same plot (no faceting here)). Add appropriate labels and titles. For the purpose of our plots we are going to look at the categorical variable of `sex` and the two numerical variables of `G1` and `G3` for the math data set.
+
+- Let us look at `G1` scores with the grouping variable of `sex`. The write-up with some takeaways will be after the three plots.
+
+First we are going to make the histogram of `G1` scores with the grouping variable of `sex`.
+```{r make hist 1}
 ggplot(math_scores2) +
-  geom_histogram(aes(x = G1, fill = sex), col = "yellow") +
+  geom_histogram(aes(x = G1, fill = sex),
+                 col = "yellow", 
+                 bins = 8,
+                 alpha = 0.2,
+                 position = "identity") +
+  labs(x = "First Period Grade",
+       y = "Number of Students in Grade Range",
+       title = "Breakdown of Students Math First Period Grades by Sex",
+       fill = "Sex", 
+       caption = "Eric Warren",
+       subtitle = "Grey bars show overlap in values with both sexes") +
   theme_bw()
 ```
+
+Now we are going to make the density plot of `G1` scores with the grouping variable of `sex`.
+```{r make density 1}
+ggplot(math_scores2) +
+  geom_density(aes(x = G1, fill = sex),
+                 col = "yellow",
+                 alpha = 0.2,
+                 position = "identity") +
+  labs(x = "First Period Grade",
+       y = "Density of Students in Grade Range",
+       title = "Density Breakdown of Students Math First Period Grades by Sex",
+       fill = "Sex", 
+       caption = "Eric Warren",
+       subtitle = "Grey coloring show overlap in values with both sexes") +
+  theme_bw()
+```
+
+Now we are going to make the boxplot of `G1` scores with the grouping variable of `sex`.
+```{r make boxplot 1}
+ggplot(math_scores2) +
+  geom_boxplot(aes(x = G1, y = sex, fill = sex)) +
+  labs(x = "First Period Grade",
+       y = "Sex of Students",
+       title = "Breakdown of Students Math First Period Grades by Sex",
+       fill = "Sex", 
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+It is interesting to see how males and female scores are relatively the same for the first period grade in math, but it seems like there are more females who get lower scores and the males tend to be better than the females getting higher final scores (since there are more number of males in the upper level scores). There seems to be an outlier on the lower end with a male not performing too well and it would be interesting to see why this student performed so much lower. Since the number of males and females are roughly the same, we can ponder if males perform better than females in math. In the boxplot, especially, we can see median, lower quartile, and upper quartile first period grades for males are higher than females.
+
+- Let us look at `G3` scores with the grouping variable of `sex`. The write-up with some takeaways will be after the three plots.
+
+Now we are going to make the histogram of `G3` scores with the grouping variable of `sex`.
+```{r make hist 2}
+ggplot(math_scores2) +
+  geom_histogram(aes(x = G3, fill = sex),
+                 col = "yellow", 
+                 bins = 8,
+                 alpha = 0.2,
+                 position = "identity") +
+  labs(x = "Final Grade",
+       y = "Number of Students in Grade Range",
+       title = "Breakdown of Students Math Final Grades by Sex",
+       fill = "Sex", 
+       caption = "Eric Warren",
+       subtitle = "Grey bars show overlap in values with both sexes") +
+  theme_bw()
+```
+
+Now we are going to make the density plot of `G1` scores with the grouping variable of `sex`.
+```{r make density 2}
+ggplot(math_scores2) +
+  geom_density(aes(x = G1, fill = sex),
+                 col = "yellow",
+                 alpha = 0.2,
+                 position = "identity") +
+  labs(x = "First Period Grade",
+       y = "Density of Students in Grade Range",
+       title = "Density Breakdown of Students Math First Period Grades by Sex",
+       fill = "Sex", 
+       caption = "Eric Warren",
+       subtitle = "Grey coloring show overlap in values with both sexes") +
+  theme_bw()
+```
+
+Now we are going to make the boxplot of `G1` scores with the grouping variable of `sex`.
+```{r make boxplot 2}
+ggplot(math_scores2) +
+  geom_boxplot(aes(x = G1, y = sex, fill = sex)) +
+  labs(x = "First Period Grade",
+       y = "Sex of Students",
+       title = "Breakdown of Students Math First Period Grades by Sex",
+       fill = "Sex", 
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+It is interesting to see how males and female scores are relatively the same for the final grade in math, but it seems like there are more females who get lower scores and the males tend to be better than the females getting higher final scores (since there are more number of males in the upper level scores). Since the number of males and females are roughly the same, we can ponder if males perform better than females in math. In the boxplot, especially, we can see median, lower quartile, and upper quartile final grades for males are higher than females. This follows suit with the first period grades as well.
+
+- Now we are going to create two scatterplots relating a `G3` variable to other numeric variables (put `G3` on the y-axis). You should jitter the points if they sit on top of each other. Color the points by a categorical variable in each. Add appropriate labels and titles.
+
+We are going to continue looking at math scores. For our first scatterplot, we are going to look at `G1` compared to `G3` with `sex` being our grouping variable. 
+```{r make scatterplot 1}
+ggplot(math_scores2) +
+  geom_point(aes(x = G1, y = G3, col = sex),
+             alpha = 0.2, 
+             position = "jitter") +
+  labs(x = "First Period Scores",
+       y = "Final Scores",
+       title = "Breakdown of Students Math First Period \nand Final Grades by Sex",
+       col = "Sex", 
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+There are some things to note from this plot. First, it seems to be a linear increasing trend with `G3` scores onto `G1` scores. We can also see some more males in the upper right (which indicates good scores for both) and more females on the left and bottom (which indicates not so good scores for both). Is there a chance that `sex` also plays a factor onto both grade variables? If we made a model should we include `sex` as a predictor?
+
+For our other scatterplot, we are going to look at `absences` compared to `G3` with `sex` being our grouping variable. 
+```{r make scatterplot 2}
+ggplot(math_scores2) +
+  geom_point(aes(x = absences, y = G3, col = sex),
+             alpha = 0.2, 
+             position = "jitter") +
+  labs(x = "Number of Absences",
+       y = "Final Scores",
+       title = "Breakdown of Students Math Absences \nand Final Grades by Sex",
+       col = "Sex", 
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+There are some things to note from this plot. First, we can see that most students do not have many `absences`. So if we tried to make a model it would be very hard to use `absences` as a predictor. Another thing interesting to note is that it seems that females tend to miss more (or more females are on the outlier part). Could this be the reason why female grades are worse than male grades for the final in math?
+
+- Now we are going to repeat our scatterplots but using another grouping variable of `internet` to facet our plots.
+
+We are going to continue looking at math scores. For our first scatterplot, we are going to look at `G1` compared to `G3` with `sex` being our grouping variable for the color of points and `internet` being our grouping variable causing us to facet the plots that way. 
+```{r update scatterplot 1}
+ggplot(math_scores2) +
+  geom_point(aes(x = G1, y = G3, col = sex),
+             alpha = 0.2, 
+             position = "jitter") +
+  labs(x = "First Period Scores",
+       y = "Final Scores",
+       title = "Breakdown of Students Math First Period \nand Final Grades by Availability to Internet and Sex",
+       subtitle = "Plots are divided by if student has internet access",
+       col = "Sex", 
+       caption = "Eric Warren") +
+  facet_wrap(~ internet) +
+  theme_bw()
+```
+
+Other than trends mentioned before, it does not look like internet access causes grades to shift in a negative way. In the US, we think this causes a distinct disadvantage if a student does not have internet access, but it seems like here it does not. It does seem more females do not have internet access and males and females scores don't seem as different grouping them this way.
+
+For our next scatterplot, we are going to look at `absences` compared to `G3` with `sex` being our grouping variable for the color of points and `internet` being our grouping variable causing us to facet the plots that way. 
+```{r update scatterplot 2}
+ggplot(math_scores2) +
+  geom_point(aes(x = absences, y = G3, col = sex),
+             alpha = 0.2, 
+             position = "jitter") +
+  labs(x = "Number of Absences",
+       y = "Final Scores",
+       title = "Breakdown of Students Math Absences \nand Final Grades by Availability to Internet and Sex",
+       subtitle = "Plots are divided by if student has internet access",
+       col = "Sex", 
+       caption = "Eric Warren") +
+  facet_wrap(~ internet) +
+  theme_bw()
+```
+
+Other than trends mentioned before, it seems that students without `internet` access tend to not have as many `absences`. Their scores seem pretty close to their counterparts who do have `internet`. There might be some students who have a smaller range of final scores on the upper end but again seems close. The big takeaway is that the number of `absences` seems lower.
+
+- Now we are going to repeat our scatterplots but using the grouping variables of `internet` and `sex` to facet our plots. Rather than 2 plots with different colors, we should expect 4 plots total.
+
+We are going to continue looking at math scores. For our first scatterplot, we are going to look at `G1` compared to `G3` with `internet` and `sex` being our grouping variables causing us to facet the plots that way. 
+```{r facet scatterplot 1}
+ggplot(math_scores2) +
+  geom_point(aes(x = G1, y = G3),
+             alpha = 0.2, 
+             position = "jitter") +
+  labs(x = "First Period Scores",
+       y = "Final Scores",
+       title = "Breakdown of Students Math First Period \nand Final Grades by Availability to Internet and Sex",
+       subtitle = "Plots are divided by if student has internet access and their sex", 
+       caption = "Eric Warren") +
+  facet_wrap(vars(internet, sex)) +
+  theme_bw()
+```
+
+Other than what was said before, it seems to be that males with and without internet tend to score better than females on both grades (but especially the final grade). This difference seems a little more noticable of males versus females when looking at students without internet access.
+
+We are going to continue looking at math scores. For our first scatterplot, we are going to look at `absences` compared to `G3` with `internet` and `sex` being our grouping variables causing us to facet the plots that way. 
+```{r facet scatterplot 2}
+ggplot(math_scores2) +
+  geom_point(aes(x = absences, y = G3),
+             alpha = 0.2, 
+             position = "jitter") +
+  labs(x = "Number of Absences",
+       y = "Final Scores",
+       title = "Breakdown of Students Math Absences \nand Final Grades by Availability to Internet and Sex",
+       subtitle = "Plots are divided by if student has internet access and their sex", 
+       caption = "Eric Warren") +
+  facet_wrap(vars(internet, sex)) +
+  theme_bw()
+```
+
+Other than what was said before, it seems that male students without internet tend to have more `absences` than female students without internet, but female students with internet tend to have more `absences` than male students with internet. It also seems from this plot that males have higher scores on the final (`G3`) value than females.
