@@ -17,6 +17,11 @@ rmarkdown::render("~/ST-558---Data-Science-in-R/Homeworks/Warren_ST 558 Homework
               )
 ```
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+options(scipen = 999)
+```
+
 # Writing a Function for the T-Test
 
 First, we are going to write a function to calculate the test statistic. Inputs will be a vector of numeric data and the mean value to compare against $\mu_0$. The output should be the calculated $t_{obs}$ value.
@@ -161,9 +166,8 @@ We are going to create a list we want to parallelize over but you’ll need to f
 # Get data first and into correct form
 n <- c(10, 20, 30, 50, 100)
 shape <- c(0.2, 0.5, 1, 2, 5, 10, 20)
-rate <- 1
 
-list_sample_data <- lapply(split(expand.grid(n = n, shape = shape),seq_along(expand.grid(n = n, shape = shape)[,1])), as.list)
+list_sample_data <- unname(lapply(split(expand.grid(n = n, shape = shape),seq_along(expand.grid(n = n, shape = shape)[,1])), as.list))
 
 # Use parallel computing by loading up cores
 library(parallel)
@@ -173,11 +177,41 @@ clusterExport(cluster, list("calculate_t_statistic", "hypothesis_test", "list_sa
 clusterEvalQ(cluster, library(tidyverse))
 
 # Get results
-set.seed(9)
 results_grid <- parLapply(cluster, 1:length(list_sample_data), function(i){
-  sample_data <- replicate(10000, rgamma(n = list_sample_data$`i`$n, shape = list_sample_data$`i`$shape, rate = 1))
-  mu_0_gamma <- list_sample_data$`i`$shape * 1
-  t_statistic <- calculate_t_statistic(sample_data[ , i], mu_0_gamma)
-  hypothesis_test(t_statistic, length(sample_data[ , i]), alpha = 0.05, direction = "two sided")
+  set.seed(9) # Set seed here for reproducible results
+  sample_data <- replicate(10000, rgamma(n = list_sample_data[[i]]$n, shape = list_sample_data[[i]]$shape, rate = 1)) # Sample data
+  mu_0_gamma <- list_sample_data[[i]]$shape * 1 # Get what the mu value is for a particular shape and rate = 1
+  list_of_ttests <- lapply(1:ncol(sample_data), function(i){
+    t_statistic <- calculate_t_statistic(sample_data[ , i], mu_0_gamma)
+    hypothesis_test(t_statistic, length(sample_data[ , i]), alpha = 0.05, direction = "two sided")
+    }) # Get the list of test results
+  mean(as.numeric(list_of_ttests)) # Get the proportion of rejections
 })
 ```
+
+```{r close cluster}
+# close cluster
+stopCluster(cluster)
+```
+
+Lastly, we are going to make a table of the proportion of rejections for each value of `n` and `shape` we tested.
+```{r make table for MC, dev='png'}
+library(tidyverse)
+# Turn lists to data frames
+sample_data_combos <- expand.grid(n = n, shape = shape)
+results_df <- as.data.frame(do.call(rbind, results_grid))
+colnames(results_df) <- "results"
+
+# Combine into one data frame
+final_results <- bind_cols(sample_data_combos, results_df)
+
+# Pivot data to wide format to make it easy to read
+final_table <- final_results %>%
+  pivot_wider(names_from = shape,
+              names_glue = "shape = {shape}",
+              values_from = results)
+
+knitr::kable(final_table)
+```
+
+Our final note here is that we can see that as the `shape` and `n` increases the proportion of rejected tests decreases. There are some anomalies that do not go with this trend but that is as the values for both tend to get really large (and they are really close proportions).
