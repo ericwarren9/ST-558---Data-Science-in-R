@@ -1,0 +1,183 @@
+---
+title: "ST 558 Homework 6"
+author: "Eric Warren"
+urlcolor: blue
+---
+
+# Code to Create this Document
+```{r output setup, eval=FALSE, echo=TRUE}
+rmarkdown::render("~/ST-558---Data-Science-in-R/Homeworks/Warren_ST 558 Homework 6.Rmd", 
+              output_format = "pdf_document", 
+              output_options = list(
+                toc = TRUE, 
+                toc_depth = 2,
+                number_sections = TRUE,
+                df_print = "tibble"
+                )
+              )
+```
+
+# Writing a Function for the T-Test
+
+First, we are going to write a function to calculate the test statistic. Inputs will be a vector of numeric data and the mean value to compare against $\mu_0$. The output should be the calculated $t_{obs}$ value.
+```{r calculate t stat}
+calculate_t_statistic <- function(x, compared_mean){
+  t_obs <- (mean(x) - compared_mean) / (sd(x) / sqrt(length(x)))
+  return(t_obs)
+}
+```
+
+Now we are going to write a function to determine whether you reject $H_0$ or fail to reject it. Inputs should be the test statistic value, the sample size, the significance level ($\alpha$), and the direction of the alternative hypothesis (left, right, or two-sided). The output should be a `TRUE` or `FALSE` value depending on whether or not you reject the null hypothesis.
+```{r hypothesis test function}
+hypothesis_test <- function(test_statistic, sample_size, alpha = 0.05, direction = "two sided"){
+  # Get the critical value (value we test against)
+  t_critical_value <- ifelse(
+    direction == "two sided", qt(alpha / 2, df = sample_size - 1, lower.tail = FALSE), ifelse(
+      direction == "left", qt(alpha, df = sample_size - 1, lower.tail = TRUE), ifelse(
+        direction == "right", qt(alpha, df = sample_size - 1, lower.tail = FALSE), warning("Error: Must input values of 'two sided', 'left', or 'right' for direction argument. The default is 'two sided'.")
+      )
+    )
+  )
+  # The results of the tests that can be done
+  result_of_test_two_sided <- ifelse((direction == "two sided") & (abs(test_statistic) > t_critical_value), TRUE, FALSE) #two sided test
+  
+  result_of_test_left <- ifelse((direction == "left") & (test_statistic < t_critical_value), TRUE, FALSE) # One sided lower test
+  
+  result_of_test_right <- ifelse((direction == "right") & (test_statistic > t_critical_value), TRUE, FALSE) # One sided upper test
+  
+  # Now get result of the appropriate test
+  result_used <- ifelse(
+    direction == "two sided", result_of_test_two_sided, ifelse(
+      direction == "left", result_of_test_left, ifelse(
+        direction == "right", result_of_test_right, warning("Error: Must input values of 'two sided', 'left', or 'right' for direction argument. The default is 'two sided'.")
+      )
+    )
+  )
+  
+  # Return the appropriate value of the test
+  return(result_used)
+}
+```
+
+Now we are going to test how well our functions work. Use the built-in `iris` data set and run a few hypothesis tests. Using the data, determine if the true mean:
+
+- sepal length differs from 5.5 (i.e. test $H_0 : \mu = 5.5 vs H_A : \mu \neq 5.5$ and report whether or not we reject $H_0$)
+- sepal width is greater than 3.5 (i.e. test $H_0 : \mu = 3.5 vs H_A : \mu > 3.5$ and report whether or not we reject $H_0$)
+- petal length is less than 4 (i.e. test $H_0 : \mu = 4.0 vs H_A : \mu < 4.0$ and report whether or not we reject $H_0$)
+
+First we are going to show the test of sepal length differs from 5.5 (i.e. test $H_0 : \mu = 5.5 vs H_A : \mu \neq 5.5$ and report whether or not we reject $H_0$).
+```{r iris test 1}
+# Get the test statistic and store it for our hypothesis test
+t_statistic1 <- calculate_t_statistic(iris$Sepal.Length, 5.5)
+
+# Perform the two-sided hypothesis test
+result_test1 <- hypothesis_test(t_statistic1, length(iris$Sepal.Length), alpha = 0.05, direction = "two sided")
+result_test1
+```
+
+Since the result from our test is `r result_test1`, we can say that we `r ifelse(result_test1 == TRUE, "have", "do not have")` statistically significant evidence to reject our $H_0$. Therefore, we can conclude that we `r ifelse(result_test1 == TRUE, "have", "do not have")` statistically significant evidence to accept the alternative hypothesis that the average sepal length is not equal to 5.5. `r ifelse(result_test1 == FALSE, "Therefore, we fail to reject our null hypothesis saying that the average sepal length is 5.5, which means this is a possible value for the average sepal length.", "")`
+
+Now we are going to show the test of sepal width is greater than 3.5 (i.e. test $H_0 : \mu = 3.5 vs H_A : \mu > 3.5$ and report whether or not we reject $H_0$).
+```{r iris test 2}
+# Get the test statistic and store it for our hypothesis test
+t_statistic2 <- calculate_t_statistic(iris$Sepal.Width, 3.5)
+
+# Perform the two-sided hypothesis test
+result_test2 <- hypothesis_test(t_statistic2, length(iris$Sepal.Width), alpha = 0.05, direction = "right")
+result_test2
+```
+
+Since the result from our test is `r result_test2`, we can say that we `r ifelse(result_test2 == TRUE, "have", "do not have")` statistically significant evidence to reject our $H_0$. Therefore, we can conclude that we `r ifelse(result_test2 == TRUE, "have", "do not have")` statistically significant evidence to accept the alternative hypothesis that the average sepal width is greater than 3.5. `r ifelse(result_test2 == FALSE, "Therefore, we fail to reject our null hypothesis saying that the average sepal width is 3.5, which means this is a possible value for the average sepal length.", "")`
+
+Lastly, we are going to show the test of petal length is less than 4 (i.e. test $H_0 : \mu = 4.0 vs H_A : \mu < 4.0$ and report whether or not we reject $H_0$).
+```{r iris test 3}
+# Get the test statistic and store it for our hypothesis test
+t_statistic3 <- calculate_t_statistic(iris$Petal.Length, 4.0)
+
+# Perform the two-sided hypothesis test
+result_test3 <- hypothesis_test(t_statistic3, length(iris$Petal.Length), alpha = 0.05, direction = "left")
+result_test3
+```
+
+Since the result from our test is `r result_test3`, we can say that we `r ifelse(result_test3 == TRUE, "have", "do not have")` statistically significant evidence to reject our $H_0$. Therefore, we can conclude that we `r ifelse(result_test3 == TRUE, "have", "do not have")` statistically significant evidence to accept the alternative hypothesis that the average petal length is less than 4.0. `r ifelse(result_test3 == FALSE, "Therefore, we fail to reject our null hypothesis saying that the average petal length is 4.0, which means this is a possible value for the average petal length.", "")`
+
+# Quick Monte Carlo Study
+
+A Monte Carlo Simulation is one where we generate (pseudo) random values using a random number generator and use those random values to judge properties of tests, intervals, algorithms, etc. We’ll generate data from a `gamma` distribution using different *shape* parameters and *sample sizes*. We’ll then apply the t-test functions from above and see how well the $\alpha$ level is controlled under the incorrect assumption about the distribution our data is generated from. (By controlled we mean how close the observed proportion of rejected null hypotheses - from data where the null hypothesis is true - is to the desired significance level of $\alpha$.)
+
+The following Pseudocode will be used:
+
+-generate a random sample of size n from the gamma distribution with a given shape and rate parameters specified (see `rgamma()`)
+- find the test statistic using the sample data and the mean of the gamma distribution for µ0 (shape*rate)
+- using the given alternative (left, right, or both) determine whether you reject or not
+- repeat many times
+- observe the proportion of rejected null hypothesis from your repetitions (these are all incorrectly rejected since the null hypothesis is true). This proportion is our Monte Carlo estimate of the $\alpha$ value under this data generating process.
+
+Write code to do the above when sampling from a gamma distribution with *shape = 0.2* and *rate = 1* with a *sample size of n = 10* for a two-sided test. Use the `replicate()` function (a wrapper for the `sapply()` function) to do the data generation and determination of reject/fail to reject (with the number of replications being 10,000)! Then find the mean of the resulting TRUE/FALSE values as your estimated $\alpha$ level under these assumptions.
+```{r Monte Carlo study}
+# Put in shape, rate, and n values in
+n_sample <- 10
+shape_sample <- 0.2
+rate_sample <- 1
+
+# Generate data; set seed
+set.seed(9)
+sample_data <- replicate(10000, rgamma(n = n_sample, shape = shape_sample, rate = rate_sample))
+
+# Get mu_0 = shape * rate
+mu_0_gamma <- shape_sample * rate_sample
+
+# Do for loop to go through all 10000 simulations 
+list_of_ttests <- lapply(1:ncol(sample_data), function(i){
+  t_statistic <- calculate_t_statistic(sample_data[ , i], mu_0_gamma)
+  hypothesis_test(t_statistic, length(sample_data[ , i]), alpha = 0.05, direction = "two sided")
+})
+
+# Proportion of rejections
+mean(as.numeric(list_of_ttests))
+```
+
+Here we can see that the proportion of rejected hypothesis tests were `r mean(as.numeric(list_of_ttests))`. That means of our random samples there we drawn `r mean(as.numeric(list_of_ttests)) * 100`% of them were rejected for a total of `r mean(as.numeric(list_of_ttests)) * 10000` random samples being rejected.
+
+# Parallel Computing
+
+Now, we may want to do the above Monte Carlo simulation for several settings of sample size, shape, and rate parameter. As it turns out, we really don’t need to worry about the rate parameter, it just scales the distribution. We will want to define the following:
+
+- create a vector of sample size values (10, 20, 30, 50, 100)
+- create a vector of shape values (0.2, 0.5, 1, 2, 5, 10, 20)
+- create a rate vector with the value 1
+
+Then we want to be able to use `parLapply()` to execute the above Monte Carlo study for combinations of sample sizes and shape values (with rate always 1). To use `parLapply()`, we need to pass:
+
+- our cluster set up via `makeCluster()`
+  - We must also use `clusterExport()` function to pass a list of our functions that we created
+  - If you use any packages, you’ll need to use `clusterEvalQ()` to pass the package
+- $X$ a list we will parallelize our computations over (each list element would be a combination of sample size and shape parameter)
+- fun a function that does the replication of gamma samples, finds the decisions for each sample, and calculates and returns the proportion
+  - Create a function to do this that just uses the `replicate()` and `mean()` code above, any other arguments needed for our functions to run (for instance rate = 1)
+  
+We are going to create a list we want to parallelize over but you’ll need to figure out a way to create it (use `expand.grid()` and/or `apply()`)
+```{r create needed list for MC}
+# Get data first and into correct form
+n <- c(10, 20, 30, 50, 100)
+shape <- c(0.2, 0.5, 1, 2, 5, 10, 20)
+rate <- 1
+
+list_sample_data <- lapply(split(expand.grid(n = n, shape = shape),seq_along(expand.grid(n = n, shape = shape)[,1])), as.list)
+
+# Use parallel computing by loading up cores
+library(parallel)
+cluster <- makeCluster(detectCores() - 1)
+
+clusterExport(cluster, list("calculate_t_statistic", "hypothesis_test", "list_sample_data"))
+clusterEvalQ(cluster, library(tidyverse))
+
+# Get results
+set.seed(9)
+results_grid <- parLapply(cluster, 1:length(list_sample_data), function(i){
+  sample_data <- replicate(10000, rgamma(n = list_sample_data$`i`$n, shape = list_sample_data$`i`$shape, rate = 1))
+  mu_0_gamma <- list_sample_data$`i`$shape * 1
+  t_statistic <- calculate_t_statistic(sample_data[ , i], mu_0_gamma)
+  hypothesis_test(t_statistic, length(sample_data[ , i]), alpha = 0.05, direction = "two sided")
+})
+```
