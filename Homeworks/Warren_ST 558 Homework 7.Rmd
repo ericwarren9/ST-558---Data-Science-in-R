@@ -1,0 +1,539 @@
+---
+title: "ST 558 Homework 7"
+author: "Eric Warren"
+date: "October 24, 2023"
+urlcolor: blue
+---
+
+```{r set wd, eval=T, echo =FALSE}
+# Allows us to get and save all information in our homeworks folder; can change if someone wants it in different folder
+setwd("~/ST-558---Data-Science-in-R/Homeworks/")
+```
+
+```{r output setup, eval=FALSE, echo=FALSE}
+rmarkdown::render("Warren_ST 558 Homework 7.Rmd", 
+              output_format = "pdf_document", 
+              output_options = list(
+                toc = TRUE, 
+                toc_depth = 2,
+                number_sections = TRUE
+                )
+              )
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+options(scipen = 999)
+```
+
+# Reading in Data
+
+The first thing we need to do is read in the data. This data is about Seoul  bike sharing rentals. The option with `locale` will help us read in the data correctly.
+```{r read in data}
+library(tidyverse)
+bikes <- read_csv("SeoulBikeData.csv", locale=locale(encoding="latin1"))
+```
+
+# Split the Data
+
+Now we are going to split the data into 75% going to the training set and the other 25% going to the test set. We’ll do our EDA and model fitting on the training set and see how the ‘best’ model does using the test set.
+```{r split data}
+# To reproduce
+set.seed(999)
+
+# Indices to split on
+train <- sample(1:nrow(bikes), size = nrow(bikes)*0.75)
+test <- dplyr::setdiff(1:nrow(bikes), train)
+
+# Subset into train and test
+(bikeTrain <- bikes[train, ]) # Show training data tibble
+(bikeTest <- bikes[test, ]) # Show testing data tibble
+```
+
+# Basic EDA
+
+Here we are going to do the following things in this section:
+
+- Go through a quick EDA on the data (again, feel free to ignore the Date column)
+- You may want to rename the variables (not required)
+- Your focus should be on the response variable we’ll use: Rented Bike Count (renamed `rented_bike_count`)
+- We’ll also create a binary version of that variable for use with logistic regression. Create a new variable that is 1 if the number of bikes rented is greater than or equal to 650 and 0 otherwise.
+
+Please note the EDA will take place on the training data.
+
+## Exploring the Data
+
+The first thing I am going to do is to clean the names of the training and testing data so they match up in the future. We will use the `janitor::clean_names()` function to do just this.
+```{r clean names}
+bikeTrain <- janitor::clean_names(bikeTrain)
+bikeTest <- janitor::clean_names(bikeTest)
+```
+
+Now let us to begin some exploratory data analysis on the data. The first thing I want to do is to get a histogram of what the rented bike count is for each observation. I am going to make a histogram that shows this to see what the breakdown is and what is the most frequent bike counts.
+```{r bike histogram}
+# Rule to find the optimal number of bins
+bins <- ceiling(
+  min(
+    sqrt(length(bikeTrain$rented_bike_count)),
+    log2(length(bikeTrain$rented_bike_count))
+  )
+)
+bikeTrain %>%
+  ggplot(aes(x = rented_bike_count)) +
+  geom_histogram(bins = bins,
+                 fill = "red",
+                 col = "black") +
+  stat_bin(bins = bins, 
+           geom = "text", 
+           aes(label = ..count..), 
+           vjust = -0.25,
+           hjust = 0.55) +
+  labs(x = "Rented Count of Bikes",
+       y = "Frequency",
+       title = "Histogram of the Count of Rented Bikes",
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+As we can see from this histogram, the majority for the bike counts are definitely less than 1000 and we can see how we have some outliers in the 3000s. This distribution seems to be very skewed right. This is something to keep in mind when we want to model later that our response does not look to be normal.
+
+We can also take a look at all the different correlations between the numerical variables. Let's see if we spot any high correlations.
+```{r correlations}
+library(corrplot)
+
+correlations <- cor(bikeTrain[sapply(bikeTrain,is.numeric)])
+corrplot(correlations, method = "number", type = "lower")
+```
+
+There is not a lot of correlation that exists between the numerical variables as really only the dew point temperatures and the actual temperature are the only pair that show high correlation (from studying weather we know this makes sense since the dew point and temperatures do have correlation). The only two pairs that show some moderate correlation is the dew point temperature and the humidity (also makes some sense with what we know with weather) and the visibility and humidity (which might make some sense since humidity could potentially cause fog which makes it harder to see).
+
+Now we are going to take a look at a scatter plot seeing if the temperature causes more bikes to be rented. We are also going to group it by the holiday variable to see if maybe holidays on nicer temperature days cause more people to rent bikes.
+```{r scatterplot}
+bikeTrain %>%
+  ggplot(aes(x = temperature_c, y = rented_bike_count)) +
+  geom_point(alpha = 0.3,
+             aes(color = holiday)) + 
+  labs(x = "Temperature in degrees Celsius",
+       y = "Number of Bikes Rented",
+       color = "Was is a holiday?",
+       title = "Count of Rented Bikes by Temperature",
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+So it looks like there is an increasing trend with temperature causing more rented bikes until it gets "too hot" for people and then it starts to decrease around 25-30 degrees Celsius (around `r (9/5) * 25 + 32` to `r (9/5) * 30 + 32` degrees Fahrenheit). It does not seem holiday makes a difference on the number of rented bikes but we can make a side by side scatterplot faceting off of holiday to double check.
+```{r scatterplot2}
+bikeTrain %>%
+  ggplot(aes(x = temperature_c, y = rented_bike_count)) +
+  geom_point(alpha = 0.3) + 
+  labs(x = "Temperature in degrees Celsius",
+       y = "Number of Bikes Rented",
+       title = "Count of Rented Bikes by Temperature",
+       caption = "Eric Warren") +
+  facet_wrap(~ holiday) +
+  theme_bw()
+```
+
+It seems that it being a holiday does not have an effect on the number of bikes rented but the temperature seems to have a quadratic effect on rented bikes.
+
+Does rain or snow just mean the same thing in terms of precipitation? Let us look and see if this is the case. If so, we can create only one column (precipitation) later on.
+```{r rain or snow}
+bikeTrain %>%
+  ggplot(aes(y = rented_bike_count)) +
+  geom_point(alpha = 0.5,
+             aes(x = rainfall_mm,
+                 color = "Rain")
+             ) + 
+  geom_point(alpha = 0.2,
+             aes(x = snowfall_cm * 10,
+                 color = "Snow")
+             ) +
+  scale_color_manual(name = "Precipitation Type",
+                     breaks = c("Rain", "Snow"),
+                     values = c("Rain" = "blue", "Snow" = "pink")
+                     ) +
+  labs(x = "Precipitation Amount in mm",
+       y = "Number of Bikes Rented",
+       title = "Count of Rented Bikes by Precipitation Amount",
+       caption = "Eric Warren"
+       ) +
+  theme_bw()
+```
+
+As we can see, rain and snow really do not matter in terms of bike sales so we can analyze them together as one variable. Also rain and snow cannot happen at the same time (so they are independent) which is why we can do this.
+
+Does precipitation matter? What about by season? We are going to look at the precipitation amounts by adding snow and rainfall together (since snow is in cm and rain in mm we are going to say 10*snow + rain to keep it in mm). We are going to have a grouping variable by season to see if the amount of precipitation has a correlation with season or the amount of bikes rented.
+```{r scatterplot3}
+bikeTrain %>%
+  ggplot(aes(x = rainfall_mm + 10*snowfall_cm, y = rented_bike_count)) +
+  geom_point(alpha = 0.3,
+             aes(color = seasons)) + 
+  labs(x = "Amount of Precipitation (in mm)",
+       y = "Number of Bikes Rented",
+       color = "Season",
+       title = "Count of Rented Bikes by the Amount of Precipitation",
+       caption = "Eric Warren") +
+  theme_bw()
+```
+
+It looks like there is more precipitation in winter and autumn and people tend to rent more bikes when there is not precipitation which makes sense. We are going to now facet by season to look at each season individually.
+```{r scatterplot4}
+bikeTrain %>%
+  ggplot(aes(x = rainfall_mm + 10*snowfall_cm, y = rented_bike_count)) +
+  geom_point(alpha = 0.3) + 
+  labs(x = "Amount of Precipitation (in mm)",
+       y = "Number of Bikes Rented",
+       title = "Count of Rented Bikes by the Amount of Precipitation",
+       caption = "Eric Warren") +
+  facet_wrap(~ seasons) +
+  theme_bw()
+```
+
+Again we can see more precipitation in autumn and winter. The number of bikes rented and the precipitation levels seems to be an exponential decay function. We can also see the seasons of summer and spring tend to do better (with autumn not too far behind) of months where people rent more bikes but this is probably due to the precipitation amounts being lower at those times.
+
+After looking at some thing that might have been connected I wanted to do a summary of the numeric variables to see how they are summarized.
+```{r summary numeric}
+summary(bikeTrain[sapply(bikeTrain,is.numeric)])
+```
+
+We should note some of the numeric variables where we should point out some important thing. First let us look at those where the median and mean are not close to matching. The first is our rented bike count which we already determined is skewed left and not normally distributed. This summary reaffirms that by the median being so much smaller than the mean (causing high outliers to drive up the average number of bikes rented). The visibility is something that looks to be skewed left as the mean is much lower than the median. Thus there are some outliers where the visibility is low. Lastly, if we look at both precipitation levels (rain and snow) there are at least 75% of observations where it does not precipitate (since the $3^{rd}$ quartile is 0). So we can say that it does not precipitate a ton but when it does it could potentially change the bike rented amount (which we showed earlier it does).
+
+Now we might want to look at the categorical variables to see what the breakdown of those are and see how even things are. Things that are not close to what we would expect would definitely affect our results since it wouldn't be a "normal situation" most of the time.
+```{r summary categorical}
+# Get the character columns
+character_columns <- colnames(bikeTrain[sapply(bikeTrain, is.character)])
+# Do not want to look at date column
+character_columns <- character_columns[character_columns != "date"]
+
+# Create list of tables
+character_df <- bikeTrain %>% 
+  dplyr::select(one_of(character_columns)) # Select only character columns we want
+
+(myListTables <- mapply(table, character_df)) # Show list of tables
+```
+
+From all of this, we can see that the seasons are broken down fairly evenly which is good since we have seasons with roughly equal lengths. Holidays are less common than no holiday days so this makes sense to see it largely in favor of no holiday days and we would expect a lot more functioning days than non-functioning days. So our breakdown of the character columns make sense too. It seems we have a pretty good idea of what our data looks like so we can start with manipulating our data before modeling.
+
+## Changing Variables
+
+In this section we are going to make new variables while also manipulating the ones we have already. This will be done before we get into our modeling stage. Some variables we are changing include creating a binary variable for the count of rented bikes if it is greater than or equal to 650 (1) or not (0). The other thing I am going to do is turn all precipitation into one measurement (combine rain and snow) which will be in mm. Personally I believe that rain and snowfalls will not affect how people feel about wanting to rent a bike and I am going to remove the snow and rainfall columns once I create this now one to avoid collinearity. I am also removing the `date` since we said we do not need it. I would also like to try to scale the number of rented bikes since there are many large outliers and these might mess up our model but we can do this later since we want the train and test data to have the same mean and variance it is being scaled on.
+```{r change variables}
+# Do this on training data first
+# Note precipitation is in mm and snow is in cm so 10*snowfall_cm = snowfall_mm
+# Remove rainfall and snowfall
+bikeTrain <- bikeTrain %>%
+  mutate(
+    large_rental_day = ifelse(rented_bike_count >= 650, 1, 0),
+    precipitation_mm = rainfall_mm + 10 * snowfall_cm
+  ) %>%
+  dplyr::select(-c(rainfall_mm, snowfall_cm, date)) %>%
+  dplyr::select(rented_bike_count, large_rental_day, everything())
+
+# Do this on testing data now
+# Note precipitation is in mm and snow is in cm so 10*snowfall_cm = snowfall_mm
+# Remove rainfall and snowfall
+bikeTest <- bikeTest %>%
+  mutate(
+    large_rental_day = ifelse(rented_bike_count >= 650, 1, 0),
+    precipitation_mm = rainfall_mm + 10 * snowfall_cm
+  ) %>%
+  dplyr::select(-c(rainfall_mm, snowfall_cm, date)) %>%
+  dplyr::select(rented_bike_count, large_rental_day, everything())
+```
+
+We have manipulated the variables we wanted to do so now we can go onto our modeling component.
+
+# Fitting MLR Models
+
+We are now ready to fit some models on the training set and compare them on the test set. Choosing variables for a regression model is a pretty difficult task, especially when you aren’t an expert in the data being used. That being said, there are some methods we can use. One group of methods is forward, backward, and best subset regression ([see chapter 6 from the ISLR book](https://drive.google.com/file/d/106d-rN7cXpyAkgrUqjcPONNCyO-rX7MQ/view), note that best subset regression isn’t implemented in `caret`). These aren’t theoretically sound methods and are generally not recommended, but they are still widely used. We should be familiar with them! These models can be fit with the `caret` package.
+
+Construct three regression models:
+
+- One via forward selection 
+  - Including interaction terms and higher-order polynomial terms can be odd here so you may want to leave those out
+- One via backward selection (no need to change any of the settings on the methods (like entry/exit criteria))
+  - Including interaction terms and higher-order polynomial terms can be odd here so you may want to leave those out
+- Fit a LASSO model using cross-validation to determine the tuning parameter
+  - Again, using polynomial terms and interaction terms can be problematic here so I’d leave those out
+  - Getting the final model coefficients out is a little tougher than it should be! This will give you the info you need: `predict(lasso$finalModel, type="coef")` if you combine it with the `bestTune` result
+
+The first thing we will do is get a model using forward selection.
+```{r lm forward}
+library(caret)
+library(leaps)
+library(MASS)
+
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the model using forward selection
+forward_model <- train(
+  rented_bike_count ~ . - large_rental_day, 
+  data = bikeTrain, 
+  method = "leapForward", 
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Coefficients of best model
+coef(forward_model$finalModel, id = forward_model$bestTune[[1]])
+```
+
+Now we are going to do the same thing with a backwards selection model.
+```{r lm backward}
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the model using forward selection
+backward_model <- train(
+  rented_bike_count ~ . - large_rental_day, 
+  data = bikeTrain, 
+  method = "leapBackward", 
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Coefficients of best model
+coef(backward_model$finalModel, id = backward_model$bestTune[[1]])
+```
+
+Something to note is the forwards and backwards selection gave us the same essential best model.
+
+Now we are going to do it for LASSO.
+```{r lm lasso}
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the model using forward selection
+lasso_model <- train(
+  rented_bike_count ~ . - large_rental_day, 
+  data = bikeTrain, 
+  method = "glmnet", 
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Coefficients of best model
+lambda_use <- min(lasso_model$finalModel$lambda[lasso_model$finalModel$lambda >= lasso_model$bestTune$lambda]); position <- which(lasso_model$finalModel$lambda == lambda_use); data.frame(coef(lasso_model$finalModel)[, position])
+```
+
+As we can see the Lasso model is different than that of the first two models we looked at.
+
+Now, we are going to create three models that include interaction terms and polynomial terms of your choosing. Use cross-validation to compare these models and select a ‘best’ model from the three. We are going to first make a model with all the possible interaction terms from the backwards selection variables. The second model is going to be a quadratic model with all the backwards selection variables. The last model is going to be a model of what I found to be interested in which is including hour, functioning_day, temperature_c, humidity, and interaction of humidity and temperature. Let us see how these models compare.
+```{r make new lm models}
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the first model we create
+made_lm_model1 <- train(
+  rented_bike_count ~ (hour + temperature_c + humidity_percent + functioning_day)^2, 
+  data = bikeTrain, 
+  method = "lm", 
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Show coefficients
+made_lm_model1$finalModel$coefficients
+
+
+# Train the second model we create
+made_lm_model2 <- train(
+  rented_bike_count ~ poly(hour, 2) + poly(temperature_c, 2) + poly(humidity_percent, 2) + functioning_day, 
+  data = bikeTrain, 
+  method = "lm", 
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Show coefficients
+made_lm_model2$finalModel$coefficients
+
+# Train the third model we create
+made_lm_model3 <- train(
+  rented_bike_count ~ hour + temperature_c + humidity_percent + functioning_day + temperature_c:humidity_percent, 
+  data = bikeTrain, 
+  method = "lm", 
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Show coefficients
+made_lm_model3$finalModel$coefficients
+
+# Pick the best model from training data
+made_lm_model1$results$RMSE; made_lm_model2$results$RMSE; made_lm_model3$results$RMSE
+
+# Pick the best model from test data
+postResample(predict(made_lm_model1, bikeTest), obs = bikeTest$rented_bike_count); postResample(predict(made_lm_model2, bikeTest), obs = bikeTest$rented_bike_count); postResample(predict(made_lm_model3, bikeTest), obs = bikeTest$rented_bike_count)
+```
+
+As we can see the best model is the first model we made. We can use this to compare to the backwards, forwards, and lasso models we made earlier.
+```{r compare linear regression models}
+# Look at train RMSE (just curious)
+min(forward_model$results$RMSE); min(backward_model$results$RMSE); min(lasso_model$results$RMSE); made_lm_model1$results$RMSE
+
+# Compare best model with test RMSE
+postResample(predict(forward_model, bikeTest), obs = bikeTest$rented_bike_count); postResample(predict(backward_model, bikeTest), obs = bikeTest$rented_bike_count); postResample(predict(lasso_model, bikeTest), obs = bikeTest$rented_bike_count); postResample(predict(made_lm_model1, bikeTest), obs = bikeTest$rented_bike_count)
+```
+
+As we can see for our model that was created using the interaction terms along with the columns selected from our backwards selection model turned out to be the best model we could create using linear regression. So if we had to make and pick a model that `made_lm_model1` is the best model out of the ones we have looked at.
+
+# Logistic Regression
+
+We are going to do the same thing we did in the **Linear Regression** section. Start off by constructing three regression models:
+
+- One via forward selection 
+  - Including interaction terms and higher-order polynomial terms can be odd here so you may want to leave those out
+- One via backward selection (no need to change any of the settings on the methods (like entry/exit criteria))
+  - Including interaction terms and higher-order polynomial terms can be odd here so you may want to leave those out
+- Fit a LASSO model using cross-validation to determine the tuning parameter
+  - Again, using polynomial terms and interaction terms can be problematic here so I’d leave those out
+  - Getting the final model coefficients out is a little tougher than it should be! This will give you the info you need: `predict(lasso$finalModel, type="coef")` if you combine it with the `bestTune` result
+
+The first thing we will do is get a model using forward selection.
+```{r log forward}
+library(caret)
+library(leaps)
+library(MASS)
+
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the model using forward selection
+forward_model_log <- train(
+  large_rental_day ~ . - rented_bike_count, 
+  data = bikeTrain, 
+  method = "leapForward", 
+  family = "binomial",
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Coefficients of best model
+coef(forward_model_log$finalModel, id = forward_model_log$bestTune[[1]])
+```
+
+Now we are going to do the same thing with a backwards selection model.
+```{r log backward}
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the model using forward selection
+backward_model_log <- train(
+  large_rental_day ~ . - rented_bike_count, 
+  data = bikeTrain, 
+  method = "leapBackward", 
+  family = "binomial",
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Coefficients of best model
+coef(backward_model_log$finalModel, id = backward_model_log$bestTune[[1]])
+```
+
+Unlike with linear regression, the forward and backward selection techniques produce different results
+
+Now we are going to do it for LASSO.
+```{r log lasso}
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the model using forward selection
+lasso_model_log <- train(
+  large_rental_day ~ . - rented_bike_count, 
+  data = bikeTrain, 
+  method = "glmnet", 
+  family = "binomial",
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Coefficients of best model
+lambda_use <- min(lasso_model_log$finalModel$lambda[lasso_model_log$finalModel$lambda >= lasso_model_log$bestTune$lambda]); position <- which(lasso_model_log$finalModel$lambda == lambda_use); data.frame(coef(lasso_model_log$finalModel)[, position])
+```
+
+As we can see Lasso uses more predictors to make its model.
+
+Now, we are going to create three models that include interaction terms and polynomial terms of your choosing. Use cross-validation to compare these models and select a ‘best’ model from the three. We are going to first make a model with all the possible interaction terms from the forwards and backwards selection variables that appeared. The second model is going to be a quadratic model with all the forwards and backwards selection variables. The last model is going to be a model of what I found to be interested in which is including hour, functioning_day, temperature_c, season, humidity, and interaction of humidity and temperature. Let us see how these models compare.
+```{r make new log models}
+# Set seed for reproducibility
+set.seed(999)
+
+# Train the first model we create
+made_log_model1 <- train(
+  large_rental_day ~ (hour + temperature_c + humidity_percent + seasons + dew_point_temperature_c)^2, 
+  data = bikeTrain, 
+  method = "glm", 
+  family = "binomial",
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Show coefficients
+made_log_model1$finalModel$coefficients
+
+# Train the second model we create
+made_log_model2 <- train(
+  large_rental_day ~ poly(hour, 2) + poly(temperature_c, 2) + poly(humidity_percent, 2) + poly(dew_point_temperature_c) + seasons, 
+  data = bikeTrain, 
+  method = "glm", 
+  family = "binomial",
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Show coefficients
+made_log_model2$finalModel$coefficients
+
+# Train the third model we create
+made_log_model3 <- train(
+  large_rental_day ~ hour + temperature_c + humidity_percent + seasons + functioning_day + temperature_c:humidity_percent, 
+  data = bikeTrain, 
+  method = "glm", 
+  family = "binomial",
+  preProcess = c("scale", "center"), 
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Show coefficients
+made_log_model3$finalModel$coefficients
+
+# Pick the best model from train data (just to see and compare)
+made_model1_predictions <- predict(made_log_model1, bikeTrain); accuracy_made_model1 <- table(bikeTrain$large_rental_day, made_model1_predictions >= 0.5); (accuracy_made_model1[2, 2] + accuracy_made_model1[1, 1]) / sum(accuracy_made_model1)
+
+made_model2_predictions <- predict(made_log_model2, bikeTrain); accuracy_made_model2 <- table(bikeTrain$large_rental_day, made_model2_predictions >= 0.5); (accuracy_made_model2[2, 2] + accuracy_made_model2[1, 1]) / sum(accuracy_made_model2)
+
+made_model3_predictions <- predict(made_log_model3, bikeTrain); accuracy_made_model3 <- table(bikeTrain$large_rental_day, made_model3_predictions >= 0.5); (accuracy_made_model3[2, 2] + accuracy_made_model3[1, 1]) / sum(accuracy_made_model3)
+
+# Pick the best model from test data
+made_model1_predictions <- predict(made_log_model1, bikeTest); accuracy_made_model1 <- table(bikeTest$large_rental_day, made_model1_predictions >= 0.5); (accuracy_made_model1[2, 2] + accuracy_made_model1[1, 1]) / sum(accuracy_made_model1)
+
+made_model2_predictions <- predict(made_log_model2, bikeTest); accuracy_made_model2 <- table(bikeTest$large_rental_day, made_model2_predictions >= 0.5); (accuracy_made_model2[2, 2] + accuracy_made_model2[1, 1]) / sum(accuracy_made_model2)
+
+made_model3_predictions <- predict(made_log_model3, bikeTest); accuracy_made_model3 <- table(bikeTest$large_rental_day, made_model3_predictions >= 0.5); (accuracy_made_model3[2, 2] + accuracy_made_model3[1, 1]) / sum(accuracy_made_model3)
+```
+
+As we can see the best model is the third model we made since its accuracy is the highest comparing to the test data (also better for training data but that does not matter). We can use this to compare to the backwards, forwards, and lasso models we made earlier.
+```{r compare logistic regression models}
+# Look at train accuracy (just curious)
+forward_predictions <- predict(forward_model_log, bikeTrain); accuracy_forward <- table(bikeTrain$large_rental_day, forward_predictions >= 0.5); (accuracy_forward[2, 2] + accuracy_forward[1, 1]) / sum(accuracy_forward)
+
+backward_predictions <- predict(backward_model_log, bikeTrain); accuracy_backward <- table(bikeTrain$large_rental_day, backward_predictions >= 0.5); (accuracy_backward[2, 2] + accuracy_backward[1, 1]) / sum(accuracy_backward)
+
+lasso_predictions <- predict(lasso_model_log, bikeTrain); accuracy_lasso <- table(bikeTrain$large_rental_day, lasso_predictions >= 0.5); (accuracy_lasso[2, 2] + accuracy_lasso[1, 1]) / sum(accuracy_lasso)
+
+made_model3_predictions <- predict(made_log_model3, bikeTrain); accuracy_made_model3 <- table(bikeTrain$large_rental_day, made_model3_predictions >= 0.5); (accuracy_made_model3[2, 2] + accuracy_made_model3[1, 1]) / sum(accuracy_made_model3)
+
+# Compare best model with test accuracy
+forward_predictions <- predict(forward_model_log, bikeTest); accuracy_forward <- table(bikeTest$large_rental_day, forward_predictions >= 0.5); (accuracy_forward[2, 2] + accuracy_forward[1, 1]) / sum(accuracy_forward)
+
+backward_predictions <- predict(backward_model_log, bikeTest); accuracy_backward <- table(bikeTest$large_rental_day, backward_predictions >= 0.5); (accuracy_backward[2, 2] + accuracy_backward[1, 1]) / sum(accuracy_backward)
+
+lasso_predictions <- predict(lasso_model_log, bikeTest); accuracy_lasso <- table(bikeTest$large_rental_day, lasso_predictions >= 0.5); (accuracy_lasso[2, 2] + accuracy_lasso[1, 1]) / sum(accuracy_lasso)
+
+made_model3_predictions <- predict(made_log_model3, bikeTest); accuracy_made_model3 <- table(bikeTest$large_rental_day, made_model3_predictions >= 0.5); (accuracy_made_model3[2, 2] + accuracy_made_model3[1, 1]) / sum(accuracy_made_model3)
+```
+
+As we can see for our model that was created using the varaibles that seemed to be important along with the interaction of temperature and humidity turned out to be the best model we could create using logistic regression. So if we had to make and pick a model that `made_log_model3` is the best model out of the ones we have looked at.
