@@ -1,0 +1,256 @@
+---
+title: "ST 558 Homework 8"
+author: "Eric Warren"
+date: "November 2, 2023"
+urlcolor: blue
+---
+
+```{r set wd, eval=T, echo =FALSE}
+# Allows us to get and save all information in our homeworks folder; can change if someone wants it in different folder
+setwd("~/ST-558---Data-Science-in-R/Homeworks/")
+```
+
+```{r output setup, eval=FALSE, echo=FALSE}
+rmarkdown::render("Warren_ST 558 Homework 8.Rmd", 
+              output_format = "pdf_document", 
+              output_options = list(
+                toc = TRUE, 
+                toc_depth = 2,
+                number_sections = TRUE
+                )
+              )
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+options(scipen = 999)
+```
+
+# Reading in Data
+
+The first thing we need to do is read in the data. This data is about looking at patients who might have heart disease.
+```{r read in data}
+library(tidyverse)
+(heart <- read_csv("heart.csv"))
+```
+
+Now we are going to manipulate the data with how we are supposed to do it. The following is what we need to do. Create a new variable that is a factor version of the `HeartDisease` variable (if needed, this depends on how you read in your data). Remove the `ST_Slope` variable, the `ExerciseAngina` variable, and the original `HeartDisease` variable (if applicable -- in our case we do not need to do this).
+```{r manipulate data}
+(
+  heart <- heart %>%
+    mutate(HeartDisease = as.factor(HeartDisease)) %>%
+    select(-c(ST_Slope, ExerciseAngina))
+)
+```
+
+# KNN Modeling
+
+We want to use kNN to predict whether or not someone has heart disease. To use kNN we generally want to have all numeric predictors (although we could try to create our own loss function to use with categorical predictors as an alternative). In this case we have some categorical predictors still in our data set: `Sex`, `ChestPainType`, and `RestingECG`.
+
+Create dummy columns corresponding to the values of these three variables for use in our kNN fit. The [caret vignette](https://topepo.github.io/caret/pre-processing.html#dummy) has a function to help us out here. You should use `dummyVars()` and `predict()` to create new columns. Then add these columns to our data frame and remove the original columns from which these variables were created.
+```{r dummy variables}
+library(caret)
+
+# Make dummy variables
+dummies <- dummyVars(HeartDisease ~ ., data = heart)
+heart_dummies <- as_tibble(predict(dummies, newdata = heart))
+
+# Make combined data frame with dummies and kept columns
+heart_remove_factor_predictors <- heart %>%
+  select(-c(Sex, ChestPainType, RestingECG))
+
+heart_data <- as_tibble(merge(heart_remove_factor_predictors, heart_dummies, by = c("Age", "Cholesterol", "FastingBS", "MaxHR", "Oldpeak", "RestingBP")))
+
+# Check for duplicates in original data
+heart[duplicated(heart), ]
+
+# Remove duplicates that might have merged for whatever reason (none should be present)
+heart_data <- heart_data[!duplicated(heart_data), ]
+```
+
+Now split the data set you’ve created into a training and testing set. Use $p = 0.8.$
+```{r split knn data}
+set.seed(999)
+heart_index <- createDataPartition(heart_data$HeartDisease, p = 0.8, list = FALSE)
+heart_train <- heart_data[heart_index, ]
+heart_test <- heart_data[-heart_index, ]
+```
+
+Finally, train the kNN model. Use repeated 10 fold cross-validation, with the number of repeats being 3. You should also preprocess the data by centering and scaling. Lastly, set the `tuneGrid` so that you are considering values of k of 1, 2, 3, ... , 40. (Note: From the help for the `train()` function it says: `tuneGrid`: A data frame with possible tuning values. The columns are named the same as the tuning parameters. The name of the tuning parameter here is k.)
+```{r train knn}
+set.seed(999)
+knn_fit <- train(
+  HeartDisease ~ ., 
+  data = heart_train,           
+  method = "knn",
+  trControl = trainControl(method = "repeatedcv", number = 10, repeats = 3),
+  preProcess = c("center", "scale"),
+  tuneGrid = data.frame(k = 1:40)
+)
+```
+
+Check how well your model does on the test set using the `confusionMatrix()` function.
+```{r check knn model}
+# Get predictions
+knn_predict <- predict(knn_fit, newdata = heart_test)
+
+# Get confusion matrix to show accuracy of model
+(
+  knn_confusion_matrix <- confusionMatrix(knn_predict, heart_test$HeartDisease)
+)
+
+# Accuracy
+knn_confusion_matrix$overall[[1]]
+```
+
+From our KNN Model we see that our model accuracy is `r knn_confusion_matrix$overall[[1]]`. While we might wish that to be better for predictive purposes this might be a hard thing to predict. Thus, we are going to explore more models.
+
+# Ensemble
+
+We’ll look at predicting the same heart disease variable in this section as well, just instead of using KNN, we’ll use the following methods:
+
+- a classification tree (use `method = rpart`: tuning parameter is `cp`, use values 0, 0.001, 0.002, ..., 0.1)
+- a bagged tree (use `method = treebag`: no tuning parameter)
+- a random forest (use `method = rf`: tuning parameter is `mtry`, use values of 1, 2, ..., 15)
+- a boosted tree (use `method = gbm`: tuning parameters are `n.trees`, `interaction.depth`, `shrinkage`, and `n.minobsinnode`, use all combinations of `n.trees` of 25, 50, 100, and 200, `interaction.depth` of 1, 2, 3, `shrinkage` = 0.1, and `n.minobsinnode` = 10; Hint: use `expand.grid()` to create your data frame for `tuneGrid`)
+
+Using the training data you created above to fit each model (using repeated CV (3 repeats) as above but just 5 fold for computational ease). Test the model by finding the confusion matrix on the test data.
+
+## Classification Tree
+
+First we are going to make a classification tree model.
+```{r classification tree model}
+# Make the model
+set.seed(999)
+class_tree_fit <- train(
+  HeartDisease ~ ., 
+  data = heart_train,           
+  method = "rpart",
+  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3),
+  preProcess = c("center", "scale"),
+  tuneGrid = data.frame(cp = seq(0, 0.1, by = 0.001))
+)
+
+# Get predictions 
+class_tree_predict <- predict(class_tree_fit, newdata = heart_test)
+
+# Get confusion matrix to show accuracy of model
+(
+  class_tree_confusion_matrix <- confusionMatrix(class_tree_predict, heart_test$HeartDisease)
+)
+
+# Accuracy
+class_tree_confusion_matrix$overall[[1]]
+```
+
+From our Classification Tree Model we see that our model accuracy is `r class_tree_confusion_matrix$overall[[1]]`. While we might wish that to be better for predictive purposes, this model was worse than our KNN model, so we should not use it as our final model. Therefore, we are going to continue to explore more models.
+
+## Bagged Tree
+
+Now we are going to make a bagged tree model.
+```{r bag tree model}
+# Make the model
+set.seed(999)
+bag_tree_fit <- train(
+  HeartDisease ~ ., 
+  data = heart_train,           
+  method = "treebag",
+  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3),
+  preProcess = c("center", "scale")
+)
+
+# Get predictions 
+bag_tree_predict <- predict(bag_tree_fit, newdata = heart_test)
+
+# Get confusion matrix to show accuracy of model
+(
+  bag_tree_confusion_matrix <- confusionMatrix(bag_tree_predict, heart_test$HeartDisease)
+)
+
+# Accuracy
+bag_tree_confusion_matrix$overall[[1]]
+```
+
+From our Bag Tree Model we see that our model accuracy is `r bag_tree_confusion_matrix$overall[[1]]`. This model was worse than our KNN model but better than our Classification Tree model; however it is a model we will not want to use. We are going to continue to explore more models.
+
+## Random Forest
+
+Now we are going to make a random forest model.
+```{r random forest model}
+# Make the model
+set.seed(999)
+rf_fit <- train(
+  HeartDisease ~ ., 
+  data = heart_train,           
+  method = "rf",
+  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3),
+  preProcess = c("center", "scale"),
+  tuneGrid = data.frame(mtry = 1:15)
+)
+
+# Get predictions 
+rf_predict <- predict(rf_fit, newdata = heart_test)
+
+# Get confusion matrix to show accuracy of model
+(
+  rf_confusion_matrix <- confusionMatrix(rf_predict, heart_test$HeartDisease)
+)
+
+# Accuracy
+rf_confusion_matrix$overall[[1]]
+```
+
+From our Random Forest Model we see that our model accuracy is `r rf_confusion_matrix$overall[[1]]`. This model was better than our KNN model, so it is a model we should want to use. We are going to continue to explore one more model before our final model selection.
+
+## Boosted Tree
+
+First we are going to make a boosted tree model.
+```{r boosted tree model, results='hide'}
+# Make the model
+set.seed(999)
+boosted_tree_fit <- train(
+  HeartDisease ~ ., 
+  data = heart_train,           
+  method = "gbm",
+  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3),
+  preProcess = c("center", "scale"),
+  tuneGrid = data.frame(
+    expand.grid(
+      n.trees = c(25, 50, 100, 200),
+      interaction.depth = 1:3,
+      shrinkage = 0.1,
+      n.minobsinnode = 10
+    )
+  )
+)
+```
+
+```{r boosted tree model 2}
+# Get predictions 
+boosted_tree_predict <- predict(boosted_tree_fit, newdata = heart_test)
+
+# Get confusion matrix to show accuracy of model
+(
+  boosted_tree_confusion_matrix <- confusionMatrix(boosted_tree_predict, heart_test$HeartDisease)
+)
+
+# Accuracy
+boosted_tree_confusion_matrix$overall[[1]]
+```
+
+From our Boosted Tree Model we see that our model accuracy is `r boosted_tree_confusion_matrix$overall[[1]]`. This model had worse accuracy than our random forest model. Therefore, we should select the random forest model from the models we have looked at. Note it is interesting that the KNN and Boosted tree model gave us the same accuracy rate in prediction.
+
+# Final Results
+
+Here we are going to make a table showing how all the models did.
+```{r show results}
+models <- c("KNN", "Classification Tree", "Bagged Tree", "Random Forest", "Boosted Tree")
+accuracy <- c(knn_confusion_matrix$overall[[1]], class_tree_confusion_matrix$overall[[1]], bag_tree_confusion_matrix$overall[[1]], rf_confusion_matrix$overall[[1]], boosted_tree_confusion_matrix$overall[[1]])
+
+# Show results
+(
+  model_results <- bind_cols(models = models, accuracy = accuracy)
+)
+```
+
+As we can see, the Random Forest model was the best ones to use for predicting heart disease. Even though we were not asked, in the future it might be interesting to see if we used logistic regression if that would have predicted things in a better way. 
